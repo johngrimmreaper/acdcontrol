@@ -7,6 +7,8 @@ acdcontrol: acdcontrol.cpp
 
 .PHONY: clean release install uninstall
 
+all: acdcontrol
+
 clean:
 	rm -f acdcontrol
 
