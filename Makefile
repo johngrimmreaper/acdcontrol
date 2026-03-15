@@ -28,3 +28,7 @@ upload:
 install:
 	install -m 0644 -o root -g root 69-apple-cinema.rules /etc/udev/rules.d
 	install -m 0755 -o root -g root acdcontrol /usr/local/bin
+
+uninstall:
+	rm -f /etc/udev/rules.d/69-apple-cinema.rules
+	rm -f /usr/local/bin/acdcontrol
