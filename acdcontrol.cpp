@@ -410,7 +410,7 @@ int main (int argc, char **argv) {
     if ( mode != DETECT && numeric_candidate ) {
       if ( !parse_int_arg( argv[ param ], value, relative ) ) {
         fprintf( stderr, "Invalid brightness value '%s'\n", argv[ param ] );
-        exit( 2 );
+        return 2;
       }
 
       if ( relative ) {
