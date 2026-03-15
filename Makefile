@@ -1,4 +1,4 @@
-RELEASE_FILES=acdcontrol.cpp acdcontrol.init acdcontrol.sysconfig COPYING COPYRIGHT Makefile VERSION
+RELEASE_FILES=acdcontrol.cpp acdcontrol.init acdcontrol.sysconfig COPYING COPYRIGHT Makefile VERSION 69-apple-cinema.rules
 VERSION=$(shell cat VERSION)
 VERNAME=acdcontrol-$(VERSION)
 DIRNAME=/tmp/$(VERNAME)
