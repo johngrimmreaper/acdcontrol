@@ -27,8 +27,8 @@ release:
 	cp $(RELEASE_FILES) $(DIRNAME)
 	tar cvfz $(VERNAME).tar.gz -C /tmp $(VERNAME) 
 
-upload:
-	curl -T $(VERNAME).tar.gz ftp://anonymous@upload.sourceforge.net/incoming/
+upload: release
+ 	curl -T $(VERNAME).tar.gz ftp://anonymous@upload.sourceforge.net/incoming/
 
 install:
 	install -d $(DESTDIR)$(UDEVRULESDIR)
