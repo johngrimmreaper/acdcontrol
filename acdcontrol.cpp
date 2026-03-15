@@ -19,6 +19,8 @@
 #define VERSION "0.3"
 
 #include <stdlib.h>
+#include <errno.h>
+#include <limits.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -100,11 +102,25 @@ SupportedVendors supportedVendors;
 typedef pair< Vendor, string> VendorDesc;
 
 
-/** @return whether the string *seems* to be a number */
-bool number( const char* str ){
-  if (!str ) return false;
-  
-  return ((*str >= '0') && (*str <= '9')) || (*str == '+') || (*str == '-');
+/** @return true if the string is a valid integer brightness argument */
+bool parse_int_arg( const char* str, int& value, bool& relative ) {
+  char* end = NULL;
+  long parsed = 0;
+
+  if ( !str || !*str )
+    return false;
+
+  errno = 0;
+  parsed = strtol( str, &end, 10 );
+
+  if ( end == str || *end != '\0' || errno == ERANGE ||
+       parsed < INT_MIN || parsed > INT_MAX ) {
+    return false;
+  }
+
+  relative = ( str[0] == '+' || str[0] == '-' );
+  value = static_cast<int>( parsed );
+  return true;
 }
 
 /** @return true if the device is in our database */
@@ -385,13 +401,24 @@ int main (int argc, char **argv) {
   FileList files;
   
   for ( int param = optind; param < argc; ++param ) {
-    if ( mode != DETECT && number ( argv[ param ] ) ) {
-      if ( argv[ param ][0] == '+' || argv[ param ][0] == '-' ) {
+    bool relative = false;
+    int value = 0;
+    bool numeric_candidate = argv[ param ] &&
+      ( ((argv[ param ][0] >= '0') && (argv[ param ][0] <= '9')) ||
+        argv[ param ][0] == '+' || argv[ param ][0] == '-' );
+
+    if ( mode != DETECT && numeric_candidate ) {
+      if ( !parse_int_arg( argv[ param ], value, relative ) ) {
+        fprintf( stderr, "Invalid brightness value '%s'\n", argv[ param ] );
+        exit( 2 );
+      }
+
+      if ( relative ) {
         mode = SETREL;
-        amount = atoi ( argv[ param ] );
+        amount = value;
       } else {
         mode = SET;
-        brightness = atoi ( argv[ param ] );
+        brightness = value;
       }
       continue;
     }
