@@ -5,6 +5,8 @@ DIRNAME=/tmp/$(VERNAME)
 
 acdcontrol: acdcontrol.cpp
 
+.PHONY: clean release install uninstall
+
 clean:
 	rm -f acdcontrol
 
