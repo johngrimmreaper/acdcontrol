@@ -16,7 +16,7 @@
 #define HID_MAX_USAGES			1024
 #define HID_MAX_APPLICATIONS		16
 
-#define VERSION "0.4"
+#define VERSION "0.5"
 
 #include <stdlib.h>
 #include <errno.h>
