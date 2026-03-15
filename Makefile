@@ -5,6 +5,9 @@ DIRNAME=/tmp/$(VERNAME)
 
 acdcontrol: acdcontrol.cpp
 
+clean:
+	rm -f acdcontrol
+
 release:
 	mkdir -p $(DIRNAME)
 	rm -rf $(DIRNAME)/*
