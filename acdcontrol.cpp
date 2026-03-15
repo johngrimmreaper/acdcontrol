@@ -196,7 +196,7 @@ void dump_usage ( hiddev_usage_ref& usage_ref ) {
 void help( const char *programName ) {
   printf( "acdcontrol " VERSION "\n");
 
-  printf( "USAGE: %s [--silent|-s] [--brief|-b] [--help|-h] [--about|-a] "
+  printf( "USAGE: %s [--silent|-s] [--brief|-b] [--help|-h] [--about|-a] [--force|-f] "
           "[--detect|-d] [--list-all |-l] <hid device(s)> [<brightness>]\n\n"
           "Parameters:\n"
           "  --silent,-s\n"
@@ -204,6 +204,8 @@ void help( const char *programName ) {
           "  --brief,-b\n"
           "         Print brightness value only when in query mode,\n"
           "         otherwise ignored.\n"
+          "  --force,-f\n"
+          "         Continue even if the detected device is unsupported.\n"
           "  --detect, -d\n"
           "         Perform detection only\n"
           "  --list-all, -l\n"
@@ -338,8 +340,7 @@ int main (int argc, char **argv) {
       {0, 0, 0, 0}
     };
       
-    c = getopt_long (argc, argv, "abhsdl",
-                     long_options, &option_index);
+    c = getopt_long (argc, argv, "abhsdlf", long_options, &option_index);
     if (c == -1)
       break;
       
