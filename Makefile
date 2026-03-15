@@ -3,11 +3,15 @@ VERSION=$(shell cat VERSION)
 VERNAME=acdcontrol-$(VERSION)
 DIRNAME=/tmp/$(VERNAME)
 
-acdcontrol: acdcontrol.cpp
+CXX ?= g++
+CXXFLAGS ?=
 
 .PHONY: clean release install uninstall
 
 all: acdcontrol
+
+acdcontrol: acdcontrol.cpp
+	$(CXX) $(CXXFLAGS) acdcontrol.cpp -o acdcontrol
 
 clean:
 	rm -f acdcontrol
