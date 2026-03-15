@@ -409,7 +409,9 @@ int main (int argc, char **argv) {
 
     if ( mode != DETECT && numeric_candidate ) {
       if ( !parse_int_arg( argv[ param ], value, relative ) ) {
-        fprintf( stderr, "Invalid brightness value '%s'\n", argv[ param ] );
+        fprintf( stderr,
+         "Invalid brightness value '%s'. Valid forms: 123, +10, or -- -10.\n",
+         argv[ param ] );
         return 2;
       }
 
