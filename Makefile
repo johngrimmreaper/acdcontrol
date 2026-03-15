@@ -3,6 +3,11 @@ VERSION=$(shell cat VERSION)
 VERNAME=acdcontrol-$(VERSION)
 DIRNAME=/tmp/$(VERNAME)
 
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+UDEVRULESDIR ?= /etc/udev/rules.d
+DESTDIR ?=
+
 CXX ?= g++
 CXXFLAGS ?=
 
@@ -26,9 +31,12 @@ upload:
 	curl -T $(VERNAME).tar.gz ftp://anonymous@upload.sourceforge.net/incoming/
 
 install:
-	install -m 0644 -o root -g root 69-apple-cinema.rules /etc/udev/rules.d
-	install -m 0755 -o root -g root acdcontrol /usr/local/bin
+	install -d $(DESTDIR)$(UDEVRULESDIR)
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 0644 69-apple-cinema.rules $(DESTDIR)$(UDEVRULESDIR)/
+	install -m 0755 acdcontrol $(DESTDIR)$(BINDIR)/
 
 uninstall:
-	rm -f /etc/udev/rules.d/69-apple-cinema.rules
-	rm -f /usr/local/bin/acdcontrol
+	rm -f $(DESTDIR)$(UDEVRULESDIR)/69-apple-cinema.rules
+	rm -f $(DESTDIR)$(BINDIR)/acdcontrol
+	
