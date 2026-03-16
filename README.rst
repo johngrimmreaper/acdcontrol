@@ -97,8 +97,8 @@ Parameters
 ``-l``, ``--list-all``
     List all officially supported monitors and exit.
 
-``--auto-brightness on|off|status``
-    Query or control native auto-brightness on supported displays.
+`--auto-brightness on|off|status`
+    Query or control the native ambient-light-sensor / auto-brightness feature on supported displays.
 
 A display not appearing in this list does not necessarily mean it will not work;
 it may simply mean it was not tested yet.
@@ -201,6 +201,23 @@ Remove installed files from the live system::
 Stage files into an alternate root directory::
 
     make install DESTDIR=/tmp/acd-stage
+
+
+## Auto-Brightness Notes
+
+On Apple LED Cinema Display 27-inch (05ac:9226), controlled testing confirms that
+the standard VESA/MCCS ambient-light-sensor control is exposed through feature
+report 102 / usage 0x00820066.
+
+Current interpretation:
+
+- report 102 / usage 0x00820066: confirmed ambient light sensor / auto-brightness control
+- report 225 / usage 0xff9200e1: tentative vendor-private boolean
+- report 236 / usage 0xff9200ec: tentative vendor-private data/status
+
+The vendor-private fields are still under investigation and should not yet be
+treated as stable public interface guarantees.
+
 
 Known Limitations
 -----------------
