@@ -132,7 +132,7 @@ Read the current brightness::
 
 Set an absolute brightness value::
 
-    ./acdcontrol /dev/acdctl0 160
+    ./acdcontrol /dev/acdctl0 650
 
 Increase brightness by 10::
 
@@ -199,9 +199,116 @@ correct.
 In practice, this is usually not a major issue because Cinema and Studio
 Displays store their brightness settings across sessions.
 
+
+acdprobe
+========
+
+``acdprobe`` is a companion utility for exploring HID monitor features exposed by
+supported displays.
+
+While ``acdcontrol`` focuses on stable user-facing control paths such as
+brightness, ``acdprobe`` is intended for discovery, reverse engineering, and
+collection of raw capability data per monitor model.
+
+Current goals
+-------------
+
+* Enumerate HID applications, reports, fields, and usages
+* Export current values for input and feature reports
+* Save raw probe artifacts in a stable per-device layout
+* Support controlled feature writes with immediate readback confirmation
+* Build a raw data catalog that contributors can submit by pull request
+
+Default output layout
+---------------------
+
+By default, ``acdprobe`` saves results under::
+
+    probes/raw/VID_PID/
+
+For example::
+
+    probes/raw/05ac_9226/05ac_9226-if0.json
+    probes/raw/05ac_9226/05ac_9226-if0.txt
+    probes/raw/05ac_9226/05ac_9226-if0.csv
+    probes/raw/05ac_9226/05ac_9226-if0.rdesc.hex
+
+The directory name is based on USB vendor ID and product ID.
+The filename is based on ``VID_PID`` plus interface number.
+
+Build
+-----
+
+Build ``acdprobe`` with::
+
+    g++ -Wall -Wextra -Wpedantic -std=c++11 acdprobe.cpp -o acdprobe
+
+Basic usage
+-----------
+
+Probe a device and save the default raw artifacts::
+
+    ./acdprobe /dev/acdctl4
+
+Probe a device without saving files::
+
+    ./acdprobe /dev/acdctl4 --no-save
+
+Use a different base directory for raw probe output::
+
+    ./acdprobe /dev/acdctl4 --save-dir probes/raw
+
+Controlled feature write with readback
+--------------------------------------
+
+``acdprobe`` can perform a controlled write to a single HID feature usage and
+read it back immediately.
+
+Example::
+
+    ./acdprobe /dev/acdctl4 --set-feature 102 0 0 2 --readback-delay-ms 500
+
+This means:
+
+* report ID = ``102``
+* field index = ``0``
+* usage index = ``0``
+* requested value = ``2``
+
+The tool reads the current value, validates the requested value against the
+logical range, writes it, commits the feature report, and then reads it back
+again.
+
+This mode is intended for targeted experiments only. It does not do brute-force
+probing or fuzzing.
+
+Known findings for Apple LED Cinema Display 27-inch
+---------------------------------------------------
+
+Initial probe results for USB ID ``05ac:9226`` show:
+
+* feature report ``16`` / usage ``0x00820010``: confirmed brightness control
+* feature report ``102`` / usage ``0x00820066``: writable 2-state candidate
+* feature report ``225`` / usage ``0xff9200e1``: writable vendor-private boolean
+* feature report ``236`` / usage ``0xff9200ec``: vendor-private data/status
+
+At the moment, write-readback success has been confirmed for reports ``102`` and
+``225``, but their exact semantic meaning is still under investigation.
+
+Contributing probe data
+-----------------------
+
+Contributors can run ``acdprobe`` on supported hardware and submit the generated
+files under the appropriate ``probes/raw/VID_PID/`` directory by pull request.
+
+The long-term goal is to build a per-model raw feature database and derive a
+curated catalog of stable capabilities from those submissions.
+
+
 Release 0.5 highlights
 ----------------------
 
 * Stricter brightness argument validation
 * Clearer CLI error messages
 * Improved Makefile targets for build, install, uninstall, and release packaging
+* Creation of acdprobe utility
