@@ -1,20 +1,20 @@
 /*
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or 
+ * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
-#define HID_MAX_USAGES			1024
-#define HID_MAX_APPLICATIONS		16
+#define HID_MAX_USAGES                   1024
+#define HID_MAX_APPLICATIONS             16
 
 #define VERSION "0.5"
 
@@ -41,10 +41,12 @@
 
 using namespace std;
 
-const int GET = 0;
-const int SET = 1;
-const int DETECT = 2;
-const int SETREL = 3;
+enum Mode {
+  MODE_GET,
+  MODE_SET,
+  MODE_DETECT,
+  MODE_SETREL
+};
 
 // Supported vendors
 const int APPLE                           = 0x05ac;
@@ -83,14 +85,14 @@ struct DeviceId {
   Product product;
   Vendor vendor;
   string description;
-  
+
   DeviceId ( Vendor vendor_, Product product_, string description_ )
     : product( product_ )
     , vendor( vendor_ )
     , description( description_ ) { }
 
   bool operator < ( const DeviceId& other ) const {
-    return (vendor < other.vendor) || 
+    return (vendor < other.vendor) ||
       (vendor == other.vendor && product < other.product );
   }
 };
@@ -130,17 +132,17 @@ bool is_supported ( const hiddev_devinfo& device_info ) {
   Product product = device_info.product & 0xFFFF;
   Vendor vendor = device_info.vendor & 0xFFFF;
 
-  return supportedDevices.find( DeviceId( vendor, product, "" )) != 
+  return supportedDevices.find( DeviceId( vendor, product, "" )) !=
     supportedDevices.end();
 }
 
 /**
  * @param v query vendor
  * @param p query product
- * @return description of the device with given vendor and product 
+ * @return description of the device with given vendor and product
  */
 string description ( Vendor v, Product p ) {
-  SupportedDevices::iterator it = 
+  SupportedDevices::iterator it =
     supportedDevices.find( DeviceId( v, p, "" ));
 
   if ( it != supportedDevices.end() )
@@ -150,23 +152,23 @@ string description ( Vendor v, Product p ) {
 }
 
 /** @param v vendor to query
- * @return true if the venodr is in the database 
+ * @return true if the venodr is in the database
  */
 bool known_vendor ( Vendor v ) {
   v &= 0xFFFF;
   return supportedVendors.find( v ) != supportedVendors.end();
 }
 
-/** Checks whether the HID device is a usb monitor 
+/** Checks whether the HID device is a usb monitor
  * @param device_info HID device info
  * @param fd file to read applications from
  */
 bool is_usb_monitor ( const hiddev_devinfo& device_info, int fd ) {
-  
+
   /* Now that we have the number of applications, we can retrieve them */
   /* using the HIDIOCAPPLICATION ioctl() call */
   /* applications are indexed from 0..{num_applications-1} */
-  for ( int appl_num = 0; appl_num < device_info.num_applications; 
+  for ( int appl_num = 0; appl_num < device_info.num_applications;
         ++appl_num ) {
     int application = ioctl( fd, HIDIOCAPPLICATION, appl_num );
     /* The magic values come from various usage table specs */
@@ -215,18 +217,18 @@ void format_device( ostream& o, const hiddev_devinfo& device_info ) {
   o << "Vendor=" << showbase << setw( 6 ) << hex << v;
   if ( known_vendor( v ) )
     o << " (" << supportedVendors[ v ] << ")";
-  
+
   o << ", Product=" << showbase << setw( 6 ) << hex << p ;
 
-  if ( is_supported( device_info )) 
+  if ( is_supported( device_info ))
     o << "[" << description( v, p ) << "]";
 
   o << endl;
 }
 
 
-/** Debug routine for dumping device usage 
- * @param usage_ref usage description 
+/** Debug routine for dumping device usage
+ * @param usage_ref usage description
  */
 void dump_usage ( hiddev_usage_ref& usage_ref ) {
   printf ("  report_type   =%d\n", usage_ref.report_type );
@@ -303,7 +305,7 @@ void help( const char *programName ) {
           "      Decrement current brightness by 10. Please,note '--'!\n"
           ,
 
-      
+
           programName );
 }
 
@@ -324,9 +326,9 @@ void about() {
           " Andre would like to thank to people that helped him to write his software and I'd "
           "like to join him as they helped me that way :)\n\n"
           "    * Dmitri Kitaynik (20\" Display)\n"
-          "    * Mark Wagner (15\" and 17\" Displays)\n" 
-          "    * Veit Wahlich (30\" Display)\n" 
-          "    * Charles Lepple (24\" Display)\n" 
+          "    * Mark Wagner (15\" and 17\" Displays)\n"
+          "    * Veit Wahlich (30\" Display)\n"
+          "    * Charles Lepple (24\" Display)\n"
           "    * Arne Zellentin (relative brightness change)\n\n"
           " Please, visit http://acdcontrol.sf.net for updates\n"
           "NOTE: You can suppress a startup message with --silent (-s) option\n"
@@ -357,21 +359,21 @@ int main (int argc, char **argv) {
   int version;
   int brightness = 0;
   int amount = 0;
-  int mode = GET;
+  Mode mode = MODE_GET;
   int open_mode = O_RDONLY;
-  
+
   /* Behavior options */
   bool brief  = false;
   bool silent = false;
   bool force = false;
 
   bool first_device=true;
-    
+
   int c;
   int digit_optind = 0;
 
   init_device_database();
-  
+
   while (1) {
     int this_option_optind = optind ? optind : 1;
     int option_index = 0;
@@ -385,40 +387,40 @@ int main (int argc, char **argv) {
       {"list-all", 0, 0, 'l'},
       {0, 0, 0, 0}
     };
-      
+
     c = getopt_long (argc, argv, "abhsdlf", long_options, &option_index);
     if (c == -1)
       break;
-      
+
     switch (c) {
     case 'a':
       about();
       return 0;
-        
+
     case 'b':
       brief=true;
       break;
-        
+
     case 'h':
       help( argv[0] );
       return 0;
-        
+
     case 's':
       silent=true;
       break;
-      
+
     case 'f':
       force=true;
       break;
 
     case 'd':
-      mode=DETECT;
+      mode=MODE_DETECT;
       break;
 
     case 'l':
       dump_supported();
       return 0;
-        
+
     default:
       fprintf (stderr,"Unknown option '%c'\n", c);
       help( argv[0] );
@@ -428,7 +430,7 @@ int main (int argc, char **argv) {
 
   typedef list< const char* > FileList;
   FileList files;
-  
+
   for ( int param = optind; param < argc; ++param ) {
     bool relative = false;
     int value = 0;
@@ -436,7 +438,7 @@ int main (int argc, char **argv) {
       ( ((argv[ param ][0] >= '0') && (argv[ param ][0] <= '9')) ||
         argv[ param ][0] == '+' || argv[ param ][0] == '-' );
 
-    if ( mode != DETECT && numeric_candidate ) {
+    if ( mode != MODE_DETECT && numeric_candidate ) {
       if ( !parse_int_arg( argv[ param ], value, relative ) ) {
         fprintf( stderr,
          "Invalid brightness value '%s'. Valid forms: 123, +10, or -- -10.\n",
@@ -445,10 +447,10 @@ int main (int argc, char **argv) {
       }
 
       if ( relative ) {
-        mode = SETREL;
+        mode = MODE_SETREL;
         amount = value;
       } else {
-        mode = SET;
+        mode = MODE_SET;
         brightness = value;
       }
       continue;
@@ -462,7 +464,7 @@ int main (int argc, char **argv) {
     return 1;
   }
 
-  if ( mode == SET || mode == SETREL ) {
+  if ( mode == MODE_SET || mode == MODE_SETREL ) {
     open_mode = O_RDWR;
   }
 
@@ -475,7 +477,7 @@ int main (int argc, char **argv) {
       perror(*it);
       continue;
     }
-    
+
     /* ioctl() accesses the underlying driver */
     ioctl(fd, HIDIOCGVERSION, &version);
     /* the HIDIOCGVERSION ioctl() returns a packed 32 field (aka integer) */
@@ -487,11 +489,11 @@ int main (int argc, char **argv) {
       }
       first_device = false;
     }
-    
+
     /* suck out some device information */
     ioctl(fd, HIDIOCGDEVINFO, &device_info);
-    
-    if ( mode == DETECT ) {
+
+    if ( mode == MODE_DETECT ) {
       if ( is_usb_monitor( device_info, fd ) ) {
         cout << *it << ": USB Monitor - "
              << (is_supported( device_info ) ? "SUPPORTED": "UNSUPPORTED")
@@ -510,14 +512,14 @@ int main (int argc, char **argv) {
         return 2;
       }
     }
-    
-    
+
+
     if (! is_usb_monitor( device_info, fd )) {
       cerr << *it << ": This device is NOT USB monitor!" << endl;
       close(fd);
       continue;
     }
-    
+
     /* Initialise the internal report structures */
     if (ioctl(fd, HIDIOCINITREPORT,0) < 0) {
       cerr << "FATAL: Failed to initialize internal report structures"
@@ -525,7 +527,7 @@ int main (int argc, char **argv) {
       close(fd);
       return 1;
     }
-    
+
     usage_ref.report_type = HID_REPORT_TYPE_FEATURE;
     usage_ref.report_id = BRIGHTNESS_REPORT_ID;
     usage_ref.field_index = 0;
@@ -533,12 +535,12 @@ int main (int argc, char **argv) {
     usage_ref.usage_code = USAGE_CODE;
     usage_ref.value = brightness;
     //  dump_usage ( usage_ref );
-    
+
     rep_info.report_type = HID_REPORT_TYPE_FEATURE;
     rep_info.report_id = BRIGHTNESS_REPORT_ID;
     rep_info.num_fields = 1;
-    
-    if ( mode == SET ) {
+
+    if ( mode == MODE_SET ) {
       if ( set_usage(fd, usage_ref) < 0 ) {
         fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
       }
@@ -552,12 +554,12 @@ int main (int argc, char **argv) {
       if ( get_report(fd, rep_info) < 0 ) {
         fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
       }
-      if ( mode == SETREL ) {
+      if ( mode == MODE_SETREL ) {
         brightness = usage_ref.value + amount;
         brightness = max( MIN_BRIGHTNESS, brightness );
         brightness = min( MAX_BRIGHTNESS, brightness );
         usage_ref.value = brightness;
-        
+
         /* set calculated brightness */
         if ( set_usage(fd, usage_ref) < 0 ) {
           fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
@@ -593,7 +595,7 @@ void init_device_database() {
   supportedDevices.insert( DeviceId( APPLE, STUDIO_DISPLAY_17,
                                      "Apple Studio Display 17\"" ));
   supportedDevices.insert( DeviceId( APPLE, CINEMA_DISPLAY_20_NEW,
-                                      "Apple Cinema Display 20\" (new)" ));
+                                     "Apple Cinema Display 20\" (new)" ));
   supportedDevices.insert( DeviceId( APPLE, CINEMA_DISPLAY_20_OLD,
                                      "Apple Cinema Display 20\" (old)" ));
   supportedDevices.insert( DeviceId( APPLE, CINEMA_DISPLAY_23_NEW,
@@ -625,6 +627,6 @@ void dump_supported () {
         it != supportedDevices.end(); ++ it )
     cout << "Vendor=" << setw( 6 ) << hex << showbase << it->vendor
          << " (" << supportedVendors[ it->vendor ] << "), "
-         << "Product=" << it->product << " [" 
+         << "Product=" << it->product << " ["
          << it->description << "]" << endl;
 }
