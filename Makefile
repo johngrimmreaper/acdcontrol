@@ -13,10 +13,13 @@ CXXFLAGS ?=
 
 .PHONY: clean release upload install uninstall
 
-all: acdcontrol
+all: acdcontrol acdprobe
 
 acdcontrol: acdcontrol.cpp
 	$(CXX) $(CXXFLAGS) acdcontrol.cpp -o acdcontrol
+
+acdprobe: acdprobe.cpp
+	$(CXX) $(CXXFLAGS) acdprobe.cpp -o acdprobe
 
 clean:
 	rm -f acdcontrol acdprobe
