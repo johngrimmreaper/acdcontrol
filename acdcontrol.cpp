@@ -51,6 +51,8 @@ const int APPLE                           = 0x05ac;
 const int SAMSUNG                         = 0x0419;
 
 const int BRIGHTNESS_CONTROL              = 16;
+const int MIN_BRIGHTNESS = 0;
+const int MAX_BRIGHTNESS = 1023;
 const int USAGE_CODE                      = 0x820010;
 
 const int STUDIO_DISPLAY_15               = 0x9215;
@@ -528,8 +530,8 @@ int main (int argc, char **argv) {
       }
       if ( mode == SETREL ) {
         brightness = usage_ref.value + amount;
-        brightness = max( 0, brightness);
-        brightness = min( 750, brightness);
+        brightness = max( MIN_BRIGHTNESS, brightness );
+        brightness = min( MAX_BRIGHTNESS, brightness );
         usage_ref.value = brightness;
         
         /* set calculated brightness */
