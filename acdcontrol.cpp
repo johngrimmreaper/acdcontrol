@@ -307,7 +307,6 @@ void help( const char *programName ) {
           "      Decrement current brightness by 10. Please,note '--'!\n"
           ,
 
-
           programName );
 }
 
@@ -348,16 +347,9 @@ void about() {
 ////////////////////////////////////////////////////////////////////////////////
 int main (int argc, char **argv) {
   int fd = -1;
-  int rd, i;
-  int alv, yalv;
   struct hiddev_devinfo device_info;
   struct hiddev_report_info rep_info;
-  struct hiddev_field_info field_info;
   struct hiddev_usage_ref usage_ref;
-  struct hiddev_event ev[64];
-  fd_set fdset;
-  int report_type;
-  int appl;
   int version;
   int brightness = 0;
   int amount = 0;
@@ -369,15 +361,13 @@ int main (int argc, char **argv) {
   bool silent = false;
   bool force = false;
 
-  bool first_device=true;
+  bool first_device = true;
 
   int c;
-  int digit_optind = 0;
 
   init_device_database();
 
   while (1) {
-    int this_option_optind = optind ? optind : 1;
     int option_index = 0;
     static struct option long_options[] = {
       {"about", 0, 0, 'a'},
@@ -400,7 +390,7 @@ int main (int argc, char **argv) {
       return 0;
 
     case 'b':
-      brief=true;
+      brief = true;
       break;
 
     case 'h':
@@ -408,15 +398,15 @@ int main (int argc, char **argv) {
       return 0;
 
     case 's':
-      silent=true;
+      silent = true;
       break;
 
     case 'f':
-      force=true;
+      force = true;
       break;
 
     case 'd':
-      mode=MODE_DETECT;
+      mode = MODE_DETECT;
       break;
 
     case 'l':
@@ -443,8 +433,8 @@ int main (int argc, char **argv) {
     if ( mode != MODE_DETECT && numeric_candidate ) {
       if ( !parse_int_arg( argv[ param ], value, relative ) ) {
         fprintf( stderr,
-         "Invalid brightness value '%s'. Valid forms: 123, +10, or -- -10.\n",
-         argv[ param ] );
+                 "Invalid brightness value '%s'. Valid forms: 123, +10, or -- -10.\n",
+                 argv[ param ] );
         return 2;
       }
 
@@ -473,8 +463,7 @@ int main (int argc, char **argv) {
   if ( !silent )
     notice();
 
-  for ( FileList::iterator it = files.begin(); it != files.end();
-        ++it ) {
+  for ( FileList::iterator it = files.begin(); it != files.end(); ++it ) {
     if (( fd = open( *it, open_mode )) < 0) {
       perror(*it);
       continue;
@@ -506,7 +495,7 @@ int main (int argc, char **argv) {
       continue;
     }
 
-    if ( !is_supported ( device_info ) ){
+    if ( !is_supported ( device_info ) ) {
       cerr << "Device unsupported:";
       format_device(cerr, device_info);
       if ( !force ) {
@@ -514,7 +503,6 @@ int main (int argc, char **argv) {
         return 2;
       }
     }
-
 
     if (! is_usb_monitor( device_info, fd )) {
       cerr << *it << ": This device is NOT USB monitor!" << endl;
@@ -586,8 +574,7 @@ int main (int argc, char **argv) {
   }
 }
 
-
-
+/* Initializes our knowledge database about Apple Cinema Displays */
 void init_device_database() {
   supportedVendors.insert( VendorDesc( SAMSUNG, "Samsung Electronics" ) );
   supportedVendors.insert( VendorDesc( APPLE, "Apple" ) );
@@ -626,7 +613,7 @@ void init_device_database() {
 
 void dump_supported () {
   for ( SupportedDevices::iterator it = supportedDevices.begin();
-        it != supportedDevices.end(); ++ it )
+        it != supportedDevices.end(); ++it )
     cout << "Vendor=" << setw( 6 ) << hex << showbase << it->vendor
          << " (" << supportedVendors[ it->vendor ] << "), "
          << "Product=" << it->product << " ["
