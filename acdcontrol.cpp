@@ -460,9 +460,13 @@ int main (int argc, char **argv) {
     ioctl(fd, HIDIOCGVERSION, &version);
     /* the HIDIOCGVERSION ioctl() returns a packed 32 field (aka integer) */
     /* so we unpack it and display it */
-    if ( ! silent && first_device )
-      printf("hiddev driver version is %d.%d.%d\n",
-             version >> 16, (version >> 8) & 0xff, version & 0xff);
+    if ( first_device ) {
+      if ( !silent ) {
+        printf("hiddev driver version is %d.%d.%d\n",
+               version >> 16, (version >> 8) & 0xff, version & 0xff);
+      }
+      first_device = false;
+    }
     
     /* suck out some device information */
     ioctl(fd, HIDIOCGDEVINFO, &device_info);
@@ -555,7 +559,6 @@ int main (int argc, char **argv) {
     }
 
     close(fd);
-    first_device=false;
   }
 }
 
