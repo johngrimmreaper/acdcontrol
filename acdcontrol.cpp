@@ -481,7 +481,7 @@ int main (int argc, char **argv) {
       format_device(cerr, device_info);
       if ( !force ) {
         close(fd);
-        exit ( 2 );
+        return 2;
       }
     }
     
@@ -497,7 +497,7 @@ int main (int argc, char **argv) {
       cerr << "FATAL: Failed to initialize internal report structures"
            << endl;
       close(fd);
-      exit(1);
+      return 1;
     }
     
     usage_ref.report_type = HID_REPORT_TYPE_FEATURE;
