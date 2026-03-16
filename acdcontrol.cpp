@@ -495,19 +495,26 @@ int main (int argc, char **argv) {
     }
 
     /* ioctl() accesses the underlying driver */
-    ioctl(fd, HIDIOCGVERSION, &version);
-    /* the HIDIOCGVERSION ioctl() returns a packed 32 field (aka integer) */
-    /* so we unpack it and display it */
-    if ( first_device ) {
-      if ( !silent ) {
-        printf("hiddev driver version is %d.%d.%d\n",
-               version >> 16, (version >> 8) & 0xff, version & 0xff);
+    if ( ioctl( fd, HIDIOCGVERSION, &version ) < 0 ) {
+      perror( "HIDIOCGVERSION" );
+    } else {
+      /* the HIDIOCGVERSION ioctl() returns a packed 32 field (aka integer) */
+      /* so we unpack it and display it */
+      if ( first_device ) {
+        if ( !silent ) {
+          printf("hiddev driver version is %d.%d.%d\n",
+                 version >> 16, (version >> 8) & 0xff, version & 0xff);
+        }
+        first_device = false;
       }
-      first_device = false;
     }
 
     /* suck out some device information */
-    ioctl(fd, HIDIOCGDEVINFO, &device_info);
+    if ( ioctl( fd, HIDIOCGDEVINFO, &device_info ) < 0 ) {
+      perror( "HIDIOCGDEVINFO" );
+      close( fd );
+      continue;
+    }
 
     if ( mode == MODE_DETECT ) {
       if ( is_usb_monitor( device_info, fd ) ) {
