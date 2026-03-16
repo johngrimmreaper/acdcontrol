@@ -48,14 +48,30 @@ enum Mode {
   MODE_SETREL
 };
 
+enum AutoBrightnessMode {
+  AUTO_BRIGHTNESS_NONE,
+  AUTO_BRIGHTNESS_STATUS,
+  AUTO_BRIGHTNESS_SET_ON,
+  AUTO_BRIGHTNESS_SET_OFF
+};
+
 // Supported vendors
 const int APPLE                           = 0x05ac;
 const int SAMSUNG                         = 0x0419;
 
 const int BRIGHTNESS_REPORT_ID            = 16;
+const int BRIGHTNESS_FIELD_INDEX          = 0;
+const int BRIGHTNESS_USAGE_INDEX          = 0;
 const int MIN_BRIGHTNESS                  = 0;
 const int MAX_BRIGHTNESS                  = 1023;
 const int USAGE_CODE                      = 0x820010;
+
+const int AUTO_BRIGHTNESS_REPORT_ID       = 102;
+const int AUTO_BRIGHTNESS_FIELD_INDEX     = 0;
+const int AUTO_BRIGHTNESS_USAGE_INDEX     = 0;
+const int AUTO_BRIGHTNESS_USAGE_CODE      = 0x820066;
+const int AUTO_BRIGHTNESS_VALUE_OFF       = 1;
+const int AUTO_BRIGHTNESS_VALUE_ON        = 2;
 
 const int STUDIO_DISPLAY_15               = 0x9215;
 const int STUDIO_DISPLAY_17               = 0x9217;
@@ -179,6 +195,14 @@ bool is_usb_monitor ( const hiddev_devinfo& device_info, int fd ) {
   return false;
 }
 
+/** @return true if auto-brightness mapping is known for this device. */
+bool supports_auto_brightness( const hiddev_devinfo& device_info ) {
+  Product product = device_info.product & 0xFFFF;
+  Vendor vendor = device_info.vendor & 0xFFFF;
+
+  return vendor == APPLE && product == CINEMA_DISPLAY_27;
+}
+
 /** Report a fatal device I/O error, close descriptor, and terminate. */
 static void fatal_perror_and_close( int fd, const char* operation, int code ) {
   perror( operation );
@@ -207,28 +231,146 @@ static int get_report( int fd, hiddev_report_info& rep_info ) {
   return ioctl( fd, HIDIOCGREPORT, &rep_info );
 }
 
+/** Initialize a feature usage reference. */
+static void init_feature_usage( hiddev_usage_ref& usage_ref,
+                                int report_id,
+                                int field_index,
+                                int usage_index,
+                                int usage_code,
+                                int value ) {
+  memset( &usage_ref, 0, sizeof( usage_ref ) );
+  usage_ref.report_type = HID_REPORT_TYPE_FEATURE;
+  usage_ref.report_id = report_id;
+  usage_ref.field_index = field_index;
+  usage_ref.usage_index = usage_index;
+  usage_ref.usage_code = usage_code;
+  usage_ref.value = value;
+}
+
+/** Initialize a feature report descriptor. */
+static void init_feature_report( hiddev_report_info& rep_info,
+                                 int report_id ) {
+  memset( &rep_info, 0, sizeof( rep_info ) );
+  rep_info.report_type = HID_REPORT_TYPE_FEATURE;
+  rep_info.report_id = report_id;
+  rep_info.num_fields = 1;
+}
+
+/** Ensure a usage code matches the expected value. */
+static void validate_usage_code( int fd,
+                                 const hiddev_usage_ref& usage_ref,
+                                 unsigned int expected_usage_code ) {
+  if ( expected_usage_code != 0 && usage_ref.usage_code != expected_usage_code ) {
+    fprintf( stderr,
+             "Unexpected usage code. Expected 0x%08x, got 0x%08x\n",
+             expected_usage_code,
+             usage_ref.usage_code );
+    close( fd );
+    exit( 4 );
+  }
+}
+
+/** Write HID feature usage/report state to the device and verify it. */
+static void write_feature_report( int fd,
+                                  hiddev_usage_ref& usage_ref,
+                                  hiddev_report_info& rep_info,
+                                  const char* usage_error,
+                                  const char* report_error,
+                                  const char* verify_usage_error,
+                                  const char* verify_report_error,
+                                  unsigned int expected_usage_code ) {
+  if ( set_usage( fd, usage_ref ) < 0 ) {
+    fatal_perror_and_close( fd, usage_error, 2 );
+  }
+  if ( set_report( fd, rep_info ) < 0 ) {
+    fatal_perror_and_close( fd, report_error, 3 );
+  }
+  if ( get_report( fd, rep_info ) < 0 ) {
+    fatal_perror_and_close( fd, verify_report_error, 3 );
+  }
+  if ( get_usage( fd, usage_ref ) < 0 ) {
+    fatal_perror_and_close( fd, verify_usage_error, 2 );
+  }
+  validate_usage_code( fd, usage_ref, expected_usage_code );
+}
+
+/** Read HID feature usage/report state from the device. */
+static void read_feature_report( int fd,
+                                 hiddev_usage_ref& usage_ref,
+                                 hiddev_report_info& rep_info,
+                                 const char* usage_error,
+                                 const char* report_error,
+                                 unsigned int expected_usage_code ) {
+  if ( get_usage( fd, usage_ref ) < 0 ) {
+    fatal_perror_and_close( fd, usage_error, 2 );
+  }
+  if ( get_report( fd, rep_info ) < 0 ) {
+    fatal_perror_and_close( fd, report_error, 3 );
+  }
+  validate_usage_code( fd, usage_ref, expected_usage_code );
+}
 
 /** Write brightness-related HID usage/report state to the device. */
 static void write_brightness_report( int fd,
                                      hiddev_usage_ref& usage_ref,
                                      hiddev_report_info& rep_info ) {
-  if ( set_usage( fd, usage_ref ) < 0 ) {
-    fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
-  }
-  if ( set_report( fd, rep_info ) < 0 ) {
-    fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
-  }
+  write_feature_report( fd,
+                        usage_ref,
+                        rep_info,
+                        "HIDIOCSUSAGE brightness failed",
+                        "HIDIOCSREPORT brightness failed",
+                        "HIDIOCGUSAGE brightness verify failed",
+                        "HIDIOCGREPORT brightness verify failed",
+                        USAGE_CODE );
 }
 
 /** Read brightness-related HID usage/report state from the device. */
 static void read_brightness_report( int fd,
                                     hiddev_usage_ref& usage_ref,
                                     hiddev_report_info& rep_info ) {
-  if ( get_usage( fd, usage_ref ) < 0 ) {
-    fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
-  }
-  if ( get_report( fd, rep_info ) < 0 ) {
-    fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
+  read_feature_report( fd,
+                       usage_ref,
+                       rep_info,
+                       "HIDIOCGUSAGE brightness failed",
+                       "HIDIOCGREPORT brightness failed",
+                       USAGE_CODE );
+}
+
+/** Write auto-brightness-related HID usage/report state to the device. */
+static void write_auto_brightness_report( int fd,
+                                          hiddev_usage_ref& usage_ref,
+                                          hiddev_report_info& rep_info ) {
+  write_feature_report( fd,
+                        usage_ref,
+                        rep_info,
+                        "HIDIOCSUSAGE auto-brightness failed",
+                        "HIDIOCSREPORT auto-brightness failed",
+                        "HIDIOCGUSAGE auto-brightness verify failed",
+                        "HIDIOCGREPORT auto-brightness verify failed",
+                        AUTO_BRIGHTNESS_USAGE_CODE );
+}
+
+/** Read auto-brightness-related HID usage/report state from the device. */
+static void read_auto_brightness_report( int fd,
+                                         hiddev_usage_ref& usage_ref,
+                                         hiddev_report_info& rep_info ) {
+  read_feature_report( fd,
+                       usage_ref,
+                       rep_info,
+                       "HIDIOCGUSAGE auto-brightness failed",
+                       "HIDIOCGREPORT auto-brightness failed",
+                       AUTO_BRIGHTNESS_USAGE_CODE );
+}
+
+/** Convert a raw auto-brightness value into a printable string. */
+static const char* auto_brightness_status( int value ) {
+  switch ( value ) {
+  case AUTO_BRIGHTNESS_VALUE_OFF:
+    return "off";
+  case AUTO_BRIGHTNESS_VALUE_ON:
+    return "on";
+  default:
+    return "unknown";
   }
 }
 
@@ -270,19 +412,23 @@ void help( const char *programName ) {
   printf( "acdcontrol " VERSION "\n");
 
   printf( "USAGE: %s [--silent|-s] [--brief|-b] [--help|-h] [--about|-a] [--force|-f] "
-          "[--detect|-d] [--list-all |-l] <hid device(s)> [<brightness>]\n\n"
+          "[--detect|-d] [--list-all |-l] [--auto-brightness <on|off|status>] <hid device(s)> [<brightness>]\n\n"
           "Parameters:\n"
           "  --silent,-s\n"
           "         Suppress non-functional program output\n"
           "  --brief,-b\n"
           "         Print brightness value only when in query mode,\n"
-          "         otherwise ignored.\n"
+          "         otherwise ignored. For --auto-brightness status,\n"
+          "         print only 'on', 'off' or 'unknown'.\n"
           "  --force,-f\n"
           "         Continue even if the detected device is unsupported.\n"
           "  --detect, -d\n"
           "         Perform detection only\n"
           "  --list-all, -l\n"
           "         List supported devices and exit\n"
+          "  --auto-brightness <on|off|status>\n"
+          "         Control or query auto-brightness on displays with a known\n"
+          "         auto-brightness mapping.\n"
           "  --help,-h\n"
           "         Show short help message and quit.\n"
           "  --about,-a\n"
@@ -330,6 +476,15 @@ void help( const char *programName ) {
           "\n"
           "  acdcontrol /dev/hiddev0 -- -10\n"
           "      Decrement current brightness by 10. Please,note '--'!\n"
+          "\n"
+          "  acdcontrol /dev/hiddev0 --auto-brightness status\n"
+          "      Query current auto-brightness state on a supported display.\n"
+          "\n"
+          "  acdcontrol /dev/hiddev0 --auto-brightness on\n"
+          "      Enable auto-brightness on a supported display.\n"
+          "\n"
+          "  acdcontrol /dev/hiddev0 --auto-brightness off\n"
+          "      Disable auto-brightness on a supported display.\n"
           ,
 
           programName );
@@ -379,6 +534,7 @@ int main (int argc, char **argv) {
   int brightness = 0;
   int amount = 0;
   Mode mode = MODE_GET;
+  AutoBrightnessMode auto_brightness_mode = AUTO_BRIGHTNESS_NONE;
   int open_mode = O_RDONLY;
 
   /* Behavior options */
@@ -402,10 +558,11 @@ int main (int argc, char **argv) {
       {"force", 0, 0, 'f'},
       {"detect", 0, 0, 'd'},
       {"list-all", 0, 0, 'l'},
+      {"auto-brightness", 1, 0, 'A'},
       {0, 0, 0, 0}
     };
 
-    c = getopt_long (argc, argv, "abhsdlf", long_options, &option_index);
+    c = getopt_long (argc, argv, "abhsdlfA:", long_options, &option_index);
     if (c == -1)
       break;
 
@@ -438,6 +595,21 @@ int main (int argc, char **argv) {
       dump_supported();
       return 0;
 
+    case 'A':
+      if ( strcmp( optarg, "status" ) == 0 ) {
+        auto_brightness_mode = AUTO_BRIGHTNESS_STATUS;
+      } else if ( strcmp( optarg, "on" ) == 0 ) {
+        auto_brightness_mode = AUTO_BRIGHTNESS_SET_ON;
+      } else if ( strcmp( optarg, "off" ) == 0 ) {
+        auto_brightness_mode = AUTO_BRIGHTNESS_SET_OFF;
+      } else {
+        fprintf( stderr,
+                 "Invalid auto-brightness mode '%s'. Valid values are: on, off, status.\n",
+                 optarg );
+        return 2;
+      }
+      break;
+
     default:
       fprintf (stderr,"Unknown option '%c'\n", c);
       help( argv[0] );
@@ -455,7 +627,7 @@ int main (int argc, char **argv) {
       ( ((argv[ param ][0] >= '0') && (argv[ param ][0] <= '9')) ||
         argv[ param ][0] == '+' || argv[ param ][0] == '-' );
 
-    if ( mode != MODE_DETECT && numeric_candidate ) {
+    if ( mode != MODE_DETECT && auto_brightness_mode == AUTO_BRIGHTNESS_NONE && numeric_candidate ) {
       if ( !parse_int_arg( argv[ param ], value, relative ) ) {
         fprintf( stderr,
                  "Invalid brightness value '%s'. Valid forms: 123, +10, or -- -10.\n",
@@ -476,12 +648,21 @@ int main (int argc, char **argv) {
     files.push_back( argv[ param ] );
   }
 
+  if ( auto_brightness_mode != AUTO_BRIGHTNESS_NONE &&
+       ( mode == MODE_SET || mode == MODE_SETREL ) ) {
+    fprintf( stderr,
+             "Brightness arguments cannot be combined with --auto-brightness.\n" );
+    return 2;
+  }
+
   if ( files.empty() ) {
     help( argv[0] );
     return 1;
   }
 
-  if ( mode == MODE_SET || mode == MODE_SETREL ) {
+  if ( mode == MODE_SET || mode == MODE_SETREL ||
+       auto_brightness_mode == AUTO_BRIGHTNESS_SET_ON ||
+       auto_brightness_mode == AUTO_BRIGHTNESS_SET_OFF ) {
     open_mode = O_RDWR;
   }
 
@@ -550,26 +731,81 @@ int main (int argc, char **argv) {
       return 1;
     }
 
-    usage_ref.report_type = HID_REPORT_TYPE_FEATURE;
-    usage_ref.report_id = BRIGHTNESS_REPORT_ID;
-    usage_ref.field_index = 0;
-    usage_ref.usage_index = 0;
-    usage_ref.usage_code = USAGE_CODE;
-    usage_ref.value = brightness;
-    //  dump_usage ( usage_ref );
+    if ( auto_brightness_mode != AUTO_BRIGHTNESS_NONE ) {
+      struct hiddev_usage_ref auto_usage_ref;
+      struct hiddev_report_info auto_rep_info;
 
-    rep_info.report_type = HID_REPORT_TYPE_FEATURE;
-    rep_info.report_id = BRIGHTNESS_REPORT_ID;
-    rep_info.num_fields = 1;
+      if ( !supports_auto_brightness( device_info ) ) {
+        cerr << *it
+             << ": Auto-brightness control is not mapped for this display model yet."
+             << endl;
+        close( fd );
+        return 2;
+      }
+
+      init_feature_usage( auto_usage_ref,
+                          AUTO_BRIGHTNESS_REPORT_ID,
+                          AUTO_BRIGHTNESS_FIELD_INDEX,
+                          AUTO_BRIGHTNESS_USAGE_INDEX,
+                          AUTO_BRIGHTNESS_USAGE_CODE,
+                          AUTO_BRIGHTNESS_VALUE_OFF );
+      init_feature_report( auto_rep_info, AUTO_BRIGHTNESS_REPORT_ID );
+
+      if ( auto_brightness_mode == AUTO_BRIGHTNESS_SET_ON ) {
+        auto_usage_ref.value = AUTO_BRIGHTNESS_VALUE_ON;
+        write_auto_brightness_report( fd, auto_usage_ref, auto_rep_info );
+      } else if ( auto_brightness_mode == AUTO_BRIGHTNESS_SET_OFF ) {
+        auto_usage_ref.value = AUTO_BRIGHTNESS_VALUE_OFF;
+        write_auto_brightness_report( fd, auto_usage_ref, auto_rep_info );
+      }
+
+      read_auto_brightness_report( fd, auto_usage_ref, auto_rep_info );
+
+      init_feature_usage( usage_ref,
+                          BRIGHTNESS_REPORT_ID,
+                          BRIGHTNESS_FIELD_INDEX,
+                          BRIGHTNESS_USAGE_INDEX,
+                          USAGE_CODE,
+                          0 );
+      init_feature_report( rep_info, BRIGHTNESS_REPORT_ID );
+      read_brightness_report( fd, usage_ref, rep_info );
+
+      if ( !brief )
+        cout << *it << ": AUTO_BRIGHTNESS=";
+      cout << auto_brightness_status( auto_usage_ref.value );
+      if ( !brief )
+        cout << " BRIGHTNESS=" << usage_ref.value;
+      cout << endl;
+
+      close( fd );
+      continue;
+    }
+
+    init_feature_usage( usage_ref,
+                        BRIGHTNESS_REPORT_ID,
+                        BRIGHTNESS_FIELD_INDEX,
+                        BRIGHTNESS_USAGE_INDEX,
+                        USAGE_CODE,
+                        brightness );
+    init_feature_report( rep_info, BRIGHTNESS_REPORT_ID );
+    // dump_usage ( usage_ref );
 
     if ( mode == MODE_SET ) {
+      if ( brightness < MIN_BRIGHTNESS )
+        brightness = MIN_BRIGHTNESS;
+      if ( brightness > MAX_BRIGHTNESS )
+        brightness = MAX_BRIGHTNESS;
+      usage_ref.value = brightness;
       write_brightness_report( fd, usage_ref, rep_info );
+      read_brightness_report( fd, usage_ref, rep_info );
     } else {
       read_brightness_report( fd, usage_ref, rep_info );
       if ( mode == MODE_SETREL ) {
         brightness = usage_ref.value + amount;
-        brightness = max( MIN_BRIGHTNESS, brightness );
-        brightness = min( MAX_BRIGHTNESS, brightness );
+        if ( brightness < MIN_BRIGHTNESS )
+          brightness = MIN_BRIGHTNESS;
+        if ( brightness > MAX_BRIGHTNESS )
+          brightness = MAX_BRIGHTNESS;
         usage_ref.value = brightness;
 
         /* set calculated brightness */
@@ -577,10 +813,11 @@ int main (int argc, char **argv) {
         /* read brightness back from device */
         read_brightness_report( fd, usage_ref, rep_info );
       }
-      if ( !brief )
-        cout << *it << ": BRIGHTNESS=";
-      cout << usage_ref.value << endl;
     }
+
+    if ( !brief )
+      cout << *it << ": BRIGHTNESS=";
+    cout << usage_ref.value << endl;
 
     close(fd);
   }
