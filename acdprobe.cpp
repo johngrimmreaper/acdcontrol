@@ -25,6 +25,33 @@
 #define PATH_MAX 4096
 #endif
 
+/* HID usage pages used by Apple USB monitor controls. */
+static const unsigned int kUsagePageUsbMonitor          = 0x0080U;
+static const unsigned int kUsagePageVesaVirtualControls = 0x0082U;
+static const unsigned int kUsagePageAppleVendorPrivate  = 0xff92U;
+
+/* HID usage IDs.
+ *
+ * Confirmed on Apple LED Cinema Display 27-inch (05ac:9226):
+ *   report 16  / usage 0x00820010 = Brightness
+ *   report 102 / usage 0x00820066 = Ambient Light Sensor / auto-brightness
+ *
+ * Tentative labels from controlled reverse-engineering:
+ *   report 225 / usage 0xff9200e1 = vendor-private boolean
+ *   report 236 / usage 0xff9200ec = vendor-private status/data
+ */
+static const unsigned int kUsageIdMonitorControl       = 0x0001U;
+static const unsigned int kUsageIdBrightness           = 0x0010U;
+static const unsigned int kUsageIdAmbientLightSensor   = 0x0066U;
+static const unsigned int kUsageIdVendorPrivateBool    = 0x00e1U;
+static const unsigned int kUsageIdVendorPrivateStatus  = 0x00ecU;
+
+/* Known report IDs for Apple LED Cinema Display 27-inch (05ac:9226). */
+static const unsigned int kFeatureReportBrightness          = 16U;
+static const unsigned int kFeatureReportAmbientLightSensor  = 102U;
+static const unsigned int kFeatureReportVendorPrivateBool   = 225U;
+static const unsigned int kFeatureReportVendorPrivateStatus = 236U;
+
 struct StringEntry {
     int index;
     std::string value;
@@ -361,9 +388,9 @@ static bool get_hid_phys(int fd, std::string& out) {
 
 static std::string usage_page_name(unsigned int page) {
     switch (page) {
-        case 0x0080: return "USB Monitor";
-        case 0x0082: return "VESA Virtual Controls";
-        case 0xff92: return "Vendor Private 0xff92";
+        case kUsagePageUsbMonitor:          return "USB Monitor";
+        case kUsagePageVesaVirtualControls: return "VESA Virtual Controls";
+        case kUsagePageAppleVendorPrivate:  return "Vendor Private 0xff92";
         default: return "Unknown";
     }
 }
@@ -372,20 +399,20 @@ static std::string decode_usage_code(unsigned int usage_code) {
     unsigned int page = (usage_code >> 16) & 0xffffU;
     unsigned int id = usage_code & 0xffffU;
 
-    if (page == 0x0080U && id == 0x0001U) {
+    if (page == kUsagePageUsbMonitor && id == kUsageIdMonitorControl) {
         return "Monitor Control";
     }
-    if (page == 0x0082U && id == 0x0010U) {
+    if (page == kUsagePageVesaVirtualControls && id == kUsageIdBrightness) {
         return "Brightness";
     }
-    if (page == 0x0082U && id == 0x0066U) {
-        return "Unresolved VESA control candidate (2-state)";
+    if (page == kUsagePageVesaVirtualControls && id == kUsageIdAmbientLightSensor) {
+        return "Ambient Light Sensor";
     }
-    if (page == 0xff92U && id == 0x00e1U) {
-        return "Vendor-private boolean candidate";
+    if (page == kUsagePageAppleVendorPrivate && id == kUsageIdVendorPrivateBool) {
+        return "Vendor-private boolean (tentative)";
     }
-    if (page == 0xff92U && id == 0x00ecU) {
-        return "Vendor-private data/status candidate";
+    if (page == kUsagePageAppleVendorPrivate && id == kUsageIdVendorPrivateStatus) {
+        return "Vendor-private data/status (tentative)";
     }
     if ((page & 0xff00U) == 0xff00U) {
         return "Vendor-private usage";
@@ -851,7 +878,7 @@ static std::vector<CandidateHint> collect_candidate_hints(const ProbeData& data)
                 CandidateHint hint;
                 bool add = false;
 
-                if (page == 0x0082U && id == 0x0010U) {
+                if (page == kUsagePageVesaVirtualControls && id == kUsageIdBrightness) {
                     hint.key = std::string("known:") + hex_u32(u->usage_code) + ":" + hex_u32(r->info.report_id);
                     hint.level = "known";
                     std::ostringstream t;
@@ -865,13 +892,13 @@ static std::vector<CandidateHint> collect_candidate_hints(const ProbeData& data)
                     }
                     hint.text = t.str();
                     add = true;
-                } else if (page == 0x0082U && id == 0x0066U) {
-                    hint.key = std::string("candidate:") + hex_u32(u->usage_code) + ":" + hex_u32(r->info.report_id);
-                    hint.level = "candidate";
+                } else if (page == kUsagePageVesaVirtualControls && id == kUsageIdAmbientLightSensor) {
+                    hint.key = std::string("known:") + hex_u32(u->usage_code) + ":" + hex_u32(r->info.report_id);
+                    hint.level = "known";
                     std::ostringstream t;
                     t << "feature report " << r->info.report_id
                       << " usage " << hex_u32(u->usage_code)
-                      << " is a strong 2-state VESA control candidate"
+                      << " is the confirmed ambient-light-sensor / auto-brightness control"
                       << " (logical range " << f->info.logical_minimum
                       << ".." << f->info.logical_maximum << "); current value=";
                     if (u->have_value) {
@@ -879,16 +906,16 @@ static std::vector<CandidateHint> collect_candidate_hints(const ProbeData& data)
                     } else {
                         t << "<unavailable>";
                     }
-                    t << ". This is worth testing as a possible auto-brightness toggle.";
+                    t << ".";
                     hint.text = t.str();
                     add = true;
-                } else if (page == 0xff92U && id == 0x00e1U) {
+                } else if (page == kUsagePageAppleVendorPrivate && id == kUsageIdVendorPrivateBool) {
                     hint.key = std::string("candidate:") + hex_u32(u->usage_code) + ":" + hex_u32(r->info.report_id);
                     hint.level = "candidate";
                     std::ostringstream t;
                     t << "feature report " << r->info.report_id
                       << " usage " << hex_u32(u->usage_code)
-                      << " is a vendor-private boolean candidate"
+                      << " is a tentative vendor-private boolean"
                       << " (logical range " << f->info.logical_minimum
                       << ".." << f->info.logical_maximum << "); current value=";
                     if (u->have_value) {
@@ -896,10 +923,21 @@ static std::vector<CandidateHint> collect_candidate_hints(const ProbeData& data)
                     } else {
                         t << "<unavailable>";
                     }
-                    t << ". This is the second-best target for later controlled experiments.";
+                    t << ". Controlled tests suggest it is not the primary auto-brightness toggle.";
                     hint.text = t.str();
                     add = true;
-                } else if (page == 0xff92U) {
+                } else if (page == kUsagePageAppleVendorPrivate && id == kUsageIdVendorPrivateStatus) {
+                    std::ostringstream key;
+                    key << "note:" << hex_u32(u->usage_code) << ":" << hex_u32(r->info.report_id);
+                    hint.key = key.str();
+                    hint.level = "note";
+                    std::ostringstream t;
+                    t << "feature report " << r->info.report_id
+                      << " usage " << hex_u32(u->usage_code)
+                      << " is tentative vendor-private data/status under investigation.";
+                    hint.text = t.str();
+                    add = true;
+                } else if (page == kUsagePageAppleVendorPrivate) {
                     std::ostringstream key;
                     key << "note:" << hex_u32(u->usage_code) << ":" << hex_u32(r->info.report_id);
                     hint.key = key.str();
@@ -914,7 +952,8 @@ static std::vector<CandidateHint> collect_candidate_hints(const ProbeData& data)
 
                 if (add) {
                     bool seen = false;
-                    for (std::vector<std::string>::const_iterator it = seen_keys.begin(); it != seen_keys.end(); ++it) {
+                    for (std::vector<std::string>::const_iterator it = seen_keys.begin();
+                         it != seen_keys.end(); ++it) {
                         if (*it == hint.key) {
                             seen = true;
                             break;
@@ -1356,8 +1395,10 @@ static void print_help(const char* argv0) {
         << "Usage:\n"
         << "  " << argv0 << " /dev/acdctl4\n"
         << "  " << argv0 << " /dev/acdctl4 --no-save\n"
-        << "  " << argv0 << " /dev/acdctl4 --set-feature 102 0 0 2\n"
-        << "  " << argv0 << " /dev/acdctl4 --set-feature 102 0 0 2 --readback-delay-ms 500\n\n"
+        << "  " << argv0 << " /dev/acdctl4 --set-feature "
+        << kFeatureReportAmbientLightSensor << " 0 0 2\n"
+        << "  " << argv0 << " /dev/acdctl4 --set-feature "
+        << kFeatureReportAmbientLightSensor << " 0 0 2 --readback-delay-ms 500\n\n"
         << "Default save layout:\n"
         << "  probes/raw/VID_PID/VID_PID-ifN.json\n"
         << "  probes/raw/VID_PID/VID_PID-ifN.txt\n"
