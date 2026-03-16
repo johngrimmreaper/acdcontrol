@@ -365,6 +365,20 @@ static bool ensure_directory_recursive(const std::string& path) {
     return false;
 }
 
+static std::string join_path(const std::string& a, const std::string& b) {
+    if (a.empty()) {
+        return b;
+    }
+    if (a[a.size() - 1] == '/') {
+        return a + b;
+    }
+    return a + "/" + b;
+}
+
+static std::string collect_dirname(const std::string& save_dir, const ProbeData& data) {
+    return join_path(save_dir, data.vid_pid_key);
+}
+
 static bool get_hid_name(int fd, std::string& out) {
     char buf[256];
     std::memset(buf, 0, sizeof(buf));
@@ -1396,6 +1410,7 @@ static void print_help(const char* argv0) {
         << "Usage:\n"
         << "  " << argv0 << " /dev/acdctl4\n"
         << "  " << argv0 << " /dev/acdctl4 --no-save\n"
+        << "  " << argv0 << " --collect /dev/acdctl4\n"
         << "  " << argv0 << " /dev/acdctl4 --set-feature "
         << kFeatureReportAmbientLightSensor << " 0 0 2\n"
         << "  " << argv0 << " /dev/acdctl4 --set-feature "
@@ -1407,6 +1422,7 @@ static void print_help(const char* argv0) {
         << "  probes/raw/VID_PID/VID_PID-ifN.rdesc.hex\n\n"
         << "Options:\n"
         << "  --save-dir DIR            Base raw output directory (default: probes/raw)\n"
+        << "  --collect                 Save a standardized report bundle under probes/VID_PID/\n"
         << "  --json PATH               Save full JSON report\n"
         << "  --text PATH               Save human-readable text report\n"
         << "  --csv PATH                Save flat CSV of all usages\n"
@@ -1448,6 +1464,7 @@ int main(int argc, char** argv) {
     std::string csv_path;
     std::string descriptor_path;
     bool no_save = false;
+    bool collect_mode = false;
     bool quiet = false;
     FeatureSetRequest set_request;
 
@@ -1459,6 +1476,8 @@ int main(int argc, char** argv) {
             return 0;
         } else if (arg == "--save-dir" && i + 1 < argc) {
             save_dir = argv[++i];
+        } else if (arg == "--collect") {
+            collect_mode = true;
         } else if (arg == "--json" && i + 1 < argc) {
             json_path = argv[++i];
         } else if (arg == "--text" && i + 1 < argc) {
@@ -1522,23 +1541,40 @@ int main(int argc, char** argv) {
     }
 
     if (!no_save) {
-        std::string default_dir = save_dir + "/" + data.vid_pid_key;
-        if (!ensure_directory_recursive(default_dir)) {
-            std::cerr << "acdprobe: failed to create output directory: " << default_dir << "\n";
+        std::string default_dir = join_path(save_dir, data.vid_pid_key);
+        std::string output_dir = collect_mode ? collect_dirname(save_dir, data) : default_dir;
+
+        if (!ensure_directory_recursive(output_dir)) {
+            std::cerr << "acdprobe: failed to create output directory: " << output_dir << "\n";
             return 1;
         }
 
-        if (json_path.empty()) {
-            json_path = default_dir + "/" + data.base_filename + ".json";
-        }
-        if (text_path.empty()) {
-            text_path = default_dir + "/" + data.base_filename + ".txt";
-        }
-        if (csv_path.empty()) {
-            csv_path = default_dir + "/" + data.base_filename + ".csv";
-        }
-        if (descriptor_path.empty()) {
-            descriptor_path = default_dir + "/" + data.base_filename + ".rdesc.hex";
+        if (collect_mode) {
+            if (json_path.empty()) {
+                json_path = join_path(output_dir, "report.json");
+            }
+            if (text_path.empty()) {
+                text_path = join_path(output_dir, "report.txt");
+            }
+            if (csv_path.empty()) {
+                csv_path = join_path(output_dir, "report.csv");
+            }
+            if (descriptor_path.empty()) {
+                descriptor_path = join_path(output_dir, "report_descriptor.hex");
+            }
+        } else {
+            if (json_path.empty()) {
+                json_path = join_path(output_dir, data.base_filename + ".json");
+            }
+            if (text_path.empty()) {
+                text_path = join_path(output_dir, data.base_filename + ".txt");
+            }
+            if (csv_path.empty()) {
+                csv_path = join_path(output_dir, data.base_filename + ".csv");
+            }
+            if (descriptor_path.empty()) {
+                descriptor_path = join_path(output_dir, data.base_filename + ".rdesc.hex");
+            }
         }
     }
 
