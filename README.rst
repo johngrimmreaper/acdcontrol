@@ -27,9 +27,9 @@ Change to the program directory and build it::
     cd acdcontrol
     make
 
-A new file named ``acdcontrol`` should appear in the same directory. If the
-build fails, make sure the required development tools are installed, for example
-``build-essential`` on Debian/Ubuntu systems.
+New files named ``acdcontrol`` and ``acdprobe`` should appear in the same
+directory. If the build fails, make sure the required development tools are
+installed, for example ``build-essential`` on Debian/Ubuntu systems.
 
 Installation
 ------------
@@ -97,8 +97,9 @@ Parameters
 ``-l``, ``--list-all``
     List all officially supported monitors and exit.
 
-`--auto-brightness on|off|status`
-    Query or control the native ambient-light-sensor / auto-brightness feature on supported displays.
+``--auto-brightness on|off|status``
+    Query or control the native ambient-light-sensor / auto-brightness feature
+    on supported displays.
 
 A display not appearing in this list does not necessarily mean it will not work;
 it may simply mean it was not tested yet.
@@ -178,11 +179,11 @@ Sample Profiles
 Useful Makefile Targets
 -----------------------
 
-Build the binary::
+Build both binaries::
 
     make
 
-Remove the built binary::
+Remove built binaries::
 
     make clean
 
@@ -202,25 +203,25 @@ Stage files into an alternate root directory::
 
     make install DESTDIR=/tmp/acd-stage
 
+Auto-Brightness Notes
+---------------------
 
-## Auto-Brightness Notes
-
-On Apple LED Cinema Display 27-inch (05ac:9226), controlled testing confirms that
-the standard VESA/MCCS ambient-light-sensor control is exposed through feature
-report 102 / usage 0x00820066.
+On Apple LED Cinema Display 27-inch (05ac:9226), controlled testing confirms
+that the standard VESA/MCCS ambient-light-sensor control is exposed through
+feature report 102 / usage 0x00820066.
 
 Current interpretation:
 
-- report 102 / usage 0x00820066: confirmed ambient light sensor / auto-brightness control
-- report 225 / usage 0xff9200e1: tentative vendor-private boolean
-- report 236 / usage 0xff9200ec: tentative vendor-private data/status
+* report 102 / usage 0x00820066: confirmed ambient light sensor / auto-brightness control
+* report 225 / usage 0xff9200e1: tentative vendor-private boolean
+* report 236 / usage 0xff9200ec: tentative vendor-private data/status
 
 The vendor-private fields are still under investigation and should not yet be
 treated as stable public interface guarantees.
 
-
 Known Limitations
 -----------------
+
 Brightness ranges depend on the display model.
 
 On the maintainer's tested Apple LED Cinema Display 27" (A1316), the
@@ -252,7 +253,6 @@ feature:
 When auto-brightness is enabled, the monitor itself adjusts the standard
 brightness control in response to ambient light.
 
-
 acdprobe
 ========
 
@@ -268,7 +268,7 @@ Current goals
 
 * Enumerate HID applications, reports, fields, and usages
 * Export current values for input and feature reports
-* Save raw probe artifacts in a stable per-device layout
+* Save privacy-safe probe artifacts in a stable per-device layout
 * Support controlled feature writes with immediate readback confirmation
 * Build a raw data catalog that contributors can submit by pull request
 
@@ -289,6 +289,39 @@ For example::
 The directory name is based on USB vendor ID and product ID.
 The filename is based on ``VID_PID`` plus interface number.
 
+Collect mode
+------------
+
+For community submissions, prefer collect mode::
+
+    ./acdprobe --collect /dev/acdctl4
+
+This writes a stable bundle under::
+
+    probes/VID_PID/
+
+For example::
+
+    probes/05ac_9226/report.json
+    probes/05ac_9226/report.txt
+    probes/05ac_9226/report.csv
+    probes/05ac_9226/summary.json
+    probes/05ac_9226/report_descriptor.hex
+
+The filenames do not include timestamps or usernames.
+
+Privacy defaults
+----------------
+
+The collected output is privacy-safe by default. Host-specific topology and
+path details are omitted from the saved reports, including:
+
+* full sysfs realpaths
+* USB physical path topology
+* bus number and device number
+
+The collected files focus on device-identifying and HID capability data.
+
 Build
 -----
 
@@ -307,9 +340,35 @@ Probe a device without saving files::
 
     ./acdprobe /dev/acdctl4 --no-save
 
+Use collect mode for a stable privacy-safe bundle::
+
+    ./acdprobe --collect /dev/acdctl4
+
 Use a different base directory for raw probe output::
 
     ./acdprobe /dev/acdctl4 --save-dir probes/raw
+
+Profiles
+--------
+
+``acdprobe`` provides named profiles to separate safe collection from
+experimental write testing.
+
+Readonly collection profile::
+
+    ./acdprobe --profile basic-readonly /dev/acdctl4
+
+Verbose readonly collection profile::
+
+    ./acdprobe --profile full-readonly /dev/acdctl4
+
+Experimental ALS discovery profile::
+
+    ./acdprobe --profile als-discovery /dev/acdctl4 --set-feature 102 0 0 2 --readback-delay-ms 500
+
+Readonly profiles imply collection mode and reject ``--set-feature``.
+The ``als-discovery`` profile enables experimental writes and prints an
+explicit warning before applying them.
 
 Controlled feature write with readback
 --------------------------------------
@@ -335,6 +394,21 @@ again.
 This mode is intended for targeted experiments only. It does not do brute-force
 probing or fuzzing.
 
+Compact summary output
+----------------------
+
+Collect mode also writes a compact ``summary.json`` file with:
+
+* ``schema_version``
+* tool name and version
+* device identification fields
+* application summary
+* report counts
+* confirmed and tentative controls with current values
+
+This summary is intended to make future per-model databases and compatibility
+indexes easier to build.
+
 Known findings for Apple LED Cinema Display 27-inch
 ---------------------------------------------------
 
@@ -342,8 +416,8 @@ Probe and live write/readback testing for USB ID ``05ac:9226`` show:
 
 * feature report ``16`` / usage ``0x00820010``: confirmed brightness control
 * feature report ``102`` / usage ``0x00820066``: confirmed auto-brightness toggle
-* feature report ``225`` / usage ``0xff9200e1``: writable vendor-private boolean
-* feature report ``236`` / usage ``0xff9200ec``: vendor-private data/status
+* feature report ``225`` / usage ``0xff9200e1``: tentative vendor-private boolean
+* feature report ``236`` / usage ``0xff9200ec``: tentative vendor-private data/status
 
 At the moment, the confirmed mapping for report ``102`` is:
 
@@ -355,12 +429,22 @@ Reports ``225`` and ``236`` remain under investigation.
 Contributing probe data
 -----------------------
 
-Contributors can run ``acdprobe`` on supported hardware and submit the generated
-files under the appropriate ``probes/raw/VID_PID/`` directory by pull request.
+Contributors can run the readonly collection workflow and submit the generated
+files under the appropriate ``probes/VID_PID/`` directory by pull request.
+
+Recommended workflow::
+
+    ./acdprobe --profile basic-readonly /dev/acdctl4
+
+For deeper non-writing collection::
+
+    ./acdprobe --profile full-readonly /dev/acdctl4
+
+Use ``als-discovery`` only if you explicitly want to help with controlled write
+experiments.
 
 The long-term goal is to build a per-model raw feature database and derive a
 curated catalog of stable capabilities from those submissions.
-
 
 Release 0.5 highlights
 ----------------------
@@ -368,8 +452,10 @@ Release 0.5 highlights
 * Stricter brightness argument validation
 * Clearer CLI error messages
 * Improved Makefile targets for build, install, uninstall, and release packaging
-* Creation of acdprobe utility
+* Creation of ``acdprobe`` utility
 * Added native auto-brightness control for Apple LED Cinema Display 27-inch (USB ID ``05ac:9226``)
 * Added ``--auto-brightness on|off|status`` to ``acdcontrol``
 * Confirmed HID mapping for the auto-brightness toggle through ``acdprobe``
+* Added privacy-safe collection mode and compact summary output to ``acdprobe``
+* Added readonly and experimental collection profiles to ``acdprobe``
 * Improved README coverage for ``acdcontrol`` and ``acdprobe``
