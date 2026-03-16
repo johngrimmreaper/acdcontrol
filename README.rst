@@ -183,6 +183,11 @@ Stage files into an alternate root directory::
 
 Known Limitations
 -----------------
+Brightness ranges depend on the display model.
+
+On the maintainer's tested Apple LED Cinema Display 27" (A1316), the
+effective brightness range is 0..1023. Other supported models may expose
+different useful ranges.
 
 The display detection process is not fully automatic yet, because you still
 need to point the tool at a candidate HID device path.
