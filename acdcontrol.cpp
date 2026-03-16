@@ -50,9 +50,9 @@ const int SETREL = 3;
 const int APPLE                           = 0x05ac;
 const int SAMSUNG                         = 0x0419;
 
-const int BRIGHTNESS_CONTROL              = 16;
-const int MIN_BRIGHTNESS = 0;
-const int MAX_BRIGHTNESS = 1023;
+const int BRIGHTNESS_REPORT_ID            = 16;
+const int MIN_BRIGHTNESS                  = 0;
+const int MAX_BRIGHTNESS                  = 1023;
 const int USAGE_CODE                      = 0x820010;
 
 const int STUDIO_DISPLAY_15               = 0x9215;
@@ -503,7 +503,7 @@ int main (int argc, char **argv) {
     }
     
     usage_ref.report_type = HID_REPORT_TYPE_FEATURE;
-    usage_ref.report_id = BRIGHTNESS_CONTROL;
+    usage_ref.report_id = BRIGHTNESS_REPORT_ID;
     usage_ref.field_index = 0;
     usage_ref.usage_index = 0;
     usage_ref.usage_code = USAGE_CODE;
@@ -511,7 +511,7 @@ int main (int argc, char **argv) {
     //  dump_usage ( usage_ref );
     
     rep_info.report_type = HID_REPORT_TYPE_FEATURE;
-    rep_info.report_id = BRIGHTNESS_CONTROL;
+    rep_info.report_id = BRIGHTNESS_REPORT_ID;
     rep_info.num_fields = 1;
     
     if ( mode == SET ) {
