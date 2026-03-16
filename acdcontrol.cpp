@@ -177,9 +177,9 @@ bool is_usb_monitor ( const hiddev_devinfo& device_info, int fd ) {
   return false;
 }
 
-/** Print perror message, close device descriptor, and terminate. */
-static void fatal_perror_and_close( int fd, const char* message, int code ) {
-  perror( message );
+/** Report a fatal device I/O error, close descriptor, and terminate. */
+static void fatal_perror_and_close( int fd, const char* operation, int code ) {
+  perror( operation );
   if ( fd >= 0 )
     close( fd );
   exit( code );
@@ -520,17 +520,17 @@ int main (int argc, char **argv) {
     
     if ( mode == SET ) {
       if ( ioctl(fd, HIDIOCSUSAGE, &usage_ref) < 0 ) {
-        fatal_perror_and_close( fd, "Usage failed!", 2 );
+        fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
       }
       if ( ioctl(fd, HIDIOCSREPORT, &rep_info) < 0 ) {
-        fatal_perror_and_close( fd, "Report failed!", 3 );
+        fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
       }
     } else {
       if ( ioctl(fd, HIDIOCGUSAGE, &usage_ref) < 0 ) {
-        fatal_perror_and_close( fd, "Usage failed!", 2 );
+        fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
       }
       if ( ioctl(fd, HIDIOCGREPORT, &rep_info) < 0 ) {
-        fatal_perror_and_close( fd, "Report failed!", 3 );
+        fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
       }
       if ( mode == SETREL ) {
         brightness = usage_ref.value + amount;
@@ -540,17 +540,17 @@ int main (int argc, char **argv) {
         
         /* set calculated brightness */
         if ( ioctl(fd, HIDIOCSUSAGE, &usage_ref) < 0 ) {
-          fatal_perror_and_close( fd, "Usage failed!", 2 );
+          fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
         }
         if ( ioctl(fd, HIDIOCSREPORT, &rep_info) < 0 ) {
-          fatal_perror_and_close( fd, "Report failed!", 3 );
+          fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
         }
         /* read brightness back from device */
         if ( ioctl(fd, HIDIOCGUSAGE, &usage_ref) < 0 ) {
-          fatal_perror_and_close( fd, "Usage failed!", 2 );
+          fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
         }
         if ( ioctl(fd, HIDIOCGREPORT, &rep_info) < 0 ) {
-          fatal_perror_and_close( fd, "Report failed!", 3 );
+          fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
         }
       }
       if ( !brief )
