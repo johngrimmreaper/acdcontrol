@@ -65,7 +65,9 @@ Usage
 ::
 
     ./acdcontrol [--silent|-s] [--brief|-b] [--help|-h] [--about|-a] \
-                 [--detect|-d] [--list-all|-l] /dev/acdctlX [brightness]
+                 [--force|-f] [--detect|-d] [--list-all|-l] \
+                 [--auto-brightness on|off|status] \
+                 /dev/acdctlX [brightness]
 
 It should be safe to run the program against other HID devices while detecting
 supported displays, because detection mode does not write brightness values.
@@ -85,14 +87,21 @@ Parameters
 ``-a``, ``--about``
     Show program information, credits, and thanks.
 
+``-f``, ``--force``
+    Continue even if the detected device is unsupported.
+
 ``-d``, ``--detect``
     Run detection mode. In this mode no brightness writes are performed, which
     makes it safer to probe candidate HID devices.
 
 ``-l``, ``--list-all``
-    List all officially supported monitors and exit. A display not appearing in
-    this list does not necessarily mean it will not work; it may simply mean it
-    was not tested yet.
+    List all officially supported monitors and exit.
+
+``--auto-brightness on|off|status``
+    Query or control native auto-brightness on supported displays.
+
+A display not appearing in this list does not necessarily mean it will not work;
+it may simply mean it was not tested yet.
 
 ``/dev/acdctlX``
     The HID device node that represents your Apple Cinema or Studio Display.
@@ -101,17 +110,17 @@ Parameters
     If omitted, the current brightness is queried. If provided, the brightness
     is changed.
 
-    Absolute form::
+Absolute form::
 
-        160
+    160
 
-    Relative increment::
+Relative increment::
 
-        +10
+    +10
 
-    Relative decrement (note the required ``--`` before the negative value)::
+Relative decrement (note the required ``--`` before the negative value)::
 
-        -- -10
+    -- -10
 
 Brightness behavior and useful values may vary depending on the display model.
 
@@ -141,6 +150,18 @@ Increase brightness by 10::
 Decrease brightness by 10::
 
     ./acdcontrol /dev/acdctl0 -- -10
+
+Read auto-brightness status::
+
+    ./acdcontrol /dev/acdctl0 --auto-brightness status
+
+Enable auto-brightness::
+
+    ./acdcontrol /dev/acdctl0 --auto-brightness on
+
+Disable auto-brightness::
+
+    ./acdcontrol /dev/acdctl0 --auto-brightness off
 
 Sample Profiles
 ---------------
@@ -198,6 +219,21 @@ correct.
 
 In practice, this is usually not a major issue because Cinema and Studio
 Displays store their brightness settings across sessions.
+
+Known auto-brightness support
+-----------------------------
+
+Native auto-brightness control is currently implemented for the Apple LED Cinema
+Display 27-inch identified as USB ID ``05ac:9226``.
+
+On this model, the auto-brightness HID control has been mapped as a two-state
+feature:
+
+* ``1`` = auto-brightness off
+* ``2`` = auto-brightness on
+
+When auto-brightness is enabled, the monitor itself adjusts the standard
+brightness control in response to ambient light.
 
 
 acdprobe
@@ -285,15 +321,19 @@ probing or fuzzing.
 Known findings for Apple LED Cinema Display 27-inch
 ---------------------------------------------------
 
-Initial probe results for USB ID ``05ac:9226`` show:
+Probe and live write/readback testing for USB ID ``05ac:9226`` show:
 
 * feature report ``16`` / usage ``0x00820010``: confirmed brightness control
-* feature report ``102`` / usage ``0x00820066``: writable 2-state candidate
+* feature report ``102`` / usage ``0x00820066``: confirmed auto-brightness toggle
 * feature report ``225`` / usage ``0xff9200e1``: writable vendor-private boolean
 * feature report ``236`` / usage ``0xff9200ec``: vendor-private data/status
 
-At the moment, write-readback success has been confirmed for reports ``102`` and
-``225``, but their exact semantic meaning is still under investigation.
+At the moment, the confirmed mapping for report ``102`` is:
+
+* ``1`` = auto-brightness off
+* ``2`` = auto-brightness on
+
+Reports ``225`` and ``236`` remain under investigation.
 
 Contributing probe data
 -----------------------
@@ -312,3 +352,7 @@ Release 0.5 highlights
 * Clearer CLI error messages
 * Improved Makefile targets for build, install, uninstall, and release packaging
 * Creation of acdprobe utility
+* Added native auto-brightness control for Apple LED Cinema Display 27-inch (USB ID ``05ac:9226``)
+* Added ``--auto-brightness on|off|status`` to ``acdcontrol``
+* Confirmed HID mapping for the auto-brightness toggle through ``acdprobe``
+* Improved README coverage for ``acdcontrol`` and ``acdprobe``
