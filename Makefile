@@ -19,7 +19,7 @@ acdcontrol: acdcontrol.cpp
 	$(CXX) $(CXXFLAGS) acdcontrol.cpp -o acdcontrol
 
 clean:
-	rm -f acdcontrol
+	rm -f acdcontrol acdprobe
 
 release:
 	mkdir -p $(DIRNAME)
