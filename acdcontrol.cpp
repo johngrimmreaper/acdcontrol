@@ -207,6 +207,31 @@ static int get_report( int fd, hiddev_report_info& rep_info ) {
   return ioctl( fd, HIDIOCGREPORT, &rep_info );
 }
 
+
+/** Write brightness-related HID usage/report state to the device. */
+static void write_brightness_report( int fd,
+                                     hiddev_usage_ref& usage_ref,
+                                     hiddev_report_info& rep_info ) {
+  if ( set_usage( fd, usage_ref ) < 0 ) {
+    fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
+  }
+  if ( set_report( fd, rep_info ) < 0 ) {
+    fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
+  }
+}
+
+/** Read brightness-related HID usage/report state from the device. */
+static void read_brightness_report( int fd,
+                                    hiddev_usage_ref& usage_ref,
+                                    hiddev_report_info& rep_info ) {
+  if ( get_usage( fd, usage_ref ) < 0 ) {
+    fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
+  }
+  if ( get_report( fd, rep_info ) < 0 ) {
+    fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
+  }
+}
+
 /** Pretty-prints the given device information
  * @param o output stream to print to
  * @param device_info HID device info
@@ -531,19 +556,9 @@ int main (int argc, char **argv) {
     rep_info.num_fields = 1;
 
     if ( mode == MODE_SET ) {
-      if ( set_usage(fd, usage_ref) < 0 ) {
-        fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
-      }
-      if ( set_report(fd, rep_info) < 0 ) {
-        fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
-      }
+      write_brightness_report( fd, usage_ref, rep_info );
     } else {
-      if ( get_usage(fd, usage_ref) < 0 ) {
-        fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
-      }
-      if ( get_report(fd, rep_info) < 0 ) {
-        fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
-      }
+      read_brightness_report( fd, usage_ref, rep_info );
       if ( mode == MODE_SETREL ) {
         brightness = usage_ref.value + amount;
         brightness = max( MIN_BRIGHTNESS, brightness );
@@ -551,19 +566,9 @@ int main (int argc, char **argv) {
         usage_ref.value = brightness;
 
         /* set calculated brightness */
-        if ( set_usage(fd, usage_ref) < 0 ) {
-          fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
-        }
-        if ( set_report(fd, rep_info) < 0 ) {
-          fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
-        }
+        write_brightness_report( fd, usage_ref, rep_info );
         /* read brightness back from device */
-        if ( get_usage(fd, usage_ref) < 0 ) {
-          fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
-        }
-        if ( get_report(fd, rep_info) < 0 ) {
-          fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
-        }
+        read_brightness_report( fd, usage_ref, rep_info );
       }
       if ( !brief )
         cout << *it << ": BRIGHTNESS=";
