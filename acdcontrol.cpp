@@ -185,6 +185,26 @@ static void fatal_perror_and_close( int fd, const char* operation, int code ) {
   exit( code );
 }
 
+/** Wrapper for HIDIOCSUSAGE. */
+static int set_usage( int fd, hiddev_usage_ref& usage_ref ) {
+  return ioctl( fd, HIDIOCSUSAGE, &usage_ref );
+}
+
+/** Wrapper for HIDIOCSREPORT. */
+static int set_report( int fd, hiddev_report_info& rep_info ) {
+  return ioctl( fd, HIDIOCSREPORT, &rep_info );
+}
+
+/** Wrapper for HIDIOCGUSAGE. */
+static int get_usage( int fd, hiddev_usage_ref& usage_ref ) {
+  return ioctl( fd, HIDIOCGUSAGE, &usage_ref );
+}
+
+/** Wrapper for HIDIOCGREPORT. */
+static int get_report( int fd, hiddev_report_info& rep_info ) {
+  return ioctl( fd, HIDIOCGREPORT, &rep_info );
+}
+
 /** Pretty-prints the given device information
  * @param o output stream to print to
  * @param device_info HID device info
@@ -519,17 +539,17 @@ int main (int argc, char **argv) {
     rep_info.num_fields = 1;
     
     if ( mode == SET ) {
-      if ( ioctl(fd, HIDIOCSUSAGE, &usage_ref) < 0 ) {
+      if ( set_usage(fd, usage_ref) < 0 ) {
         fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
       }
-      if ( ioctl(fd, HIDIOCSREPORT, &rep_info) < 0 ) {
+      if ( set_report(fd, rep_info) < 0 ) {
         fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
       }
     } else {
-      if ( ioctl(fd, HIDIOCGUSAGE, &usage_ref) < 0 ) {
+      if ( get_usage(fd, usage_ref) < 0 ) {
         fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
       }
-      if ( ioctl(fd, HIDIOCGREPORT, &rep_info) < 0 ) {
+      if ( get_report(fd, rep_info) < 0 ) {
         fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
       }
       if ( mode == SETREL ) {
@@ -539,17 +559,17 @@ int main (int argc, char **argv) {
         usage_ref.value = brightness;
         
         /* set calculated brightness */
-        if ( ioctl(fd, HIDIOCSUSAGE, &usage_ref) < 0 ) {
+        if ( set_usage(fd, usage_ref) < 0 ) {
           fatal_perror_and_close( fd, "HIDIOCSUSAGE failed", 2 );
         }
-        if ( ioctl(fd, HIDIOCSREPORT, &rep_info) < 0 ) {
+        if ( set_report(fd, rep_info) < 0 ) {
           fatal_perror_and_close( fd, "HIDIOCSREPORT failed", 3 );
         }
         /* read brightness back from device */
-        if ( ioctl(fd, HIDIOCGUSAGE, &usage_ref) < 0 ) {
+        if ( get_usage(fd, usage_ref) < 0 ) {
           fatal_perror_and_close( fd, "HIDIOCGUSAGE failed", 2 );
         }
-        if ( ioctl(fd, HIDIOCGREPORT, &rep_info) < 0 ) {
+        if ( get_report(fd, rep_info) < 0 ) {
           fatal_perror_and_close( fd, "HIDIOCGREPORT failed", 3 );
         }
       }
