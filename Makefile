@@ -11,7 +11,7 @@ DESTDIR ?=
 CXX ?= g++
 CXXFLAGS ?=
 
-.PHONY: clean release upload install uninstall
+.PHONY: all clean release upload install uninstall
 
 all: acdcontrol acdprobe
 
