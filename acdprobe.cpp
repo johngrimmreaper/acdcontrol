@@ -141,6 +141,15 @@ struct ProbeData {
     std::string base_filename;
 };
 
+struct SummaryControl {
+    unsigned int report_id;
+    unsigned int usage_code;
+    std::string name;
+    std::string confidence;
+    std::vector<int> current_values;
+};
+
+
 static std::string now_utc_iso8601() {
     std::time_t now = std::time(NULL);
     struct tm tm_now;
@@ -623,6 +632,7 @@ static void detect_sysfs_paths(ProbeData& data) {
     }
 
     std::string descriptor_path;
+    std::string summary_path;
 
     if (!data.sysfs_hiddev_realpath.empty()) {
         descriptor_path = find_report_descriptor_path_from_base(data.sysfs_hiddev_realpath);
@@ -1204,6 +1214,146 @@ static void append_reports_json(std::ostream& out, const std::vector<ReportInfoW
     }
 }
 
+
+static std::string find_string_value(const ProbeData& data, int index) {
+    for (std::vector<StringEntry>::const_iterator it = data.strings.begin();
+         it != data.strings.end(); ++it) {
+        if (it->index == index) {
+            return it->value;
+        }
+    }
+    return "";
+}
+
+static std::string confidence_for_usage_code(unsigned int usage_code) {
+    unsigned int page = (usage_code >> 16) & 0xffffU;
+    unsigned int id = usage_code & 0xffffU;
+
+    if (page == kUsagePageVesaVirtualControls &&
+        (id == kUsageIdBrightness || id == kUsageIdAmbientLightSensor)) {
+        return "confirmed";
+    }
+    if (page == kUsagePageAppleVendorPrivate &&
+        (id == kUsageIdVendorPrivateBool || id == kUsageIdVendorPrivateStatus)) {
+        return "tentative";
+    }
+    if (page == kUsagePageAppleVendorPrivate) {
+        return "unknown";
+    }
+    return "observed";
+}
+
+static std::vector<SummaryControl> collect_summary_controls(const ProbeData& data) {
+    std::vector<SummaryControl> controls;
+
+    for (std::vector<ReportInfoWrap>::const_iterator r = data.feature_reports.begin();
+         r != data.feature_reports.end(); ++r) {
+        for (std::vector<FieldInfoWrap>::const_iterator f = r->fields.begin();
+             f != r->fields.end(); ++f) {
+            for (std::vector<UsageInfo>::const_iterator u = f->usages.begin();
+                 u != f->usages.end(); ++u) {
+                std::vector<SummaryControl>::iterator existing = controls.end();
+                for (std::vector<SummaryControl>::iterator it = controls.begin();
+                     it != controls.end(); ++it) {
+                    if (it->report_id == r->info.report_id && it->usage_code == u->usage_code) {
+                        existing = it;
+                        break;
+                    }
+                }
+
+                if (existing == controls.end()) {
+                    SummaryControl control;
+                    control.report_id = r->info.report_id;
+                    control.usage_code = u->usage_code;
+                    control.name = decode_usage_code(u->usage_code);
+                    control.confidence = confidence_for_usage_code(u->usage_code);
+                    controls.push_back(control);
+                    existing = controls.end() - 1;
+                }
+
+                if (u->have_value) {
+                    existing->current_values.push_back(u->value);
+                }
+            }
+        }
+    }
+
+    return controls;
+}
+
+static std::string build_summary_json(const ProbeData& data) {
+    std::ostringstream out;
+    std::vector<SummaryControl> controls = collect_summary_controls(data);
+    std::string manufacturer_string = find_string_value(data, 1);
+    std::string product_string = find_string_value(data, 2);
+
+    out << "{\n";
+    out << "  \"schema_version\": 1,\n";
+    out << "  \"tool\": {\n";
+    out << "    \"name\": \"acdprobe\",\n";
+    out << "    \"version\": \"" << ACDPROBE_VERSION << "\"\n";
+    out << "  },\n";
+    out << "  \"device\": {\n";
+    out << "    \"vid_pid_key\": \"" << escape_json(data.vid_pid_key) << "\",\n";
+    out << "    \"vendor\": \"" << hex_u16(static_cast<unsigned int>(data.devinfo.vendor)) << "\",\n";
+    out << "    \"product\": \"" << hex_u16(static_cast<unsigned int>(data.devinfo.product)) << "\",\n";
+    out << "    \"version\": \"" << hex_u16(static_cast<unsigned int>(data.devinfo.version)) << "\",\n";
+    out << "    \"ifnum\": " << data.devinfo.ifnum << ",\n";
+    out << "    \"hid_name\": \"" << escape_json(data.hid_name) << "\",\n";
+    out << "    \"manufacturer_string\": \"" << escape_json(manufacturer_string) << "\",\n";
+    out << "    \"product_string\": \"" << escape_json(product_string) << "\"\n";
+    out << "  },\n";
+    out << "  \"applications\": [\n";
+    for (std::vector<unsigned int>::size_type i = 0; i < data.applications.size(); ++i) {
+        unsigned int app = data.applications[i];
+        out << "    { \"usage_code\": \"" << hex_u32(app)
+            << "\", \"decoded\": \"" << escape_json(decode_usage_code(app)) << "\" }";
+        if ((i + 1) != data.applications.size()) {
+            out << ",";
+        }
+        out << "\n";
+    }
+    out << "  ],\n";
+    out << "  \"reports\": {\n";
+    out << "    \"input_count\": " << data.input_reports.size() << ",\n";
+    out << "    \"output_count\": " << data.output_reports.size() << ",\n";
+    out << "    \"feature_count\": " << data.feature_reports.size() << "\n";
+    out << "  },\n";
+    out << "  \"controls\": [\n";
+    for (std::vector<SummaryControl>::size_type i = 0; i < controls.size(); ++i) {
+        const SummaryControl& control = controls[i];
+        out << "    {\n";
+        out << "      \"report_id\": " << control.report_id << ",\n";
+        out << "      \"usage_code\": \"" << hex_u32(control.usage_code) << "\",\n";
+        out << "      \"name\": \"" << escape_json(control.name) << "\",\n";
+        out << "      \"confidence\": \"" << escape_json(control.confidence) << "\",\n";
+        out << "      \"current_value\": ";
+        if (control.current_values.empty()) {
+            out << "null\n";
+        } else if (control.current_values.size() == 1) {
+            out << control.current_values[0] << "\n";
+        } else {
+            out << "[";
+            for (std::vector<int>::size_type j = 0; j < control.current_values.size(); ++j) {
+                out << control.current_values[j];
+                if ((j + 1) != control.current_values.size()) {
+                    out << ", ";
+                }
+            }
+            out << "]\n";
+        }
+        out << "    }";
+        if ((i + 1) != controls.size()) {
+            out << ",";
+        }
+        out << "\n";
+    }
+    out << "  ]\n";
+    out << "}\n";
+
+    return out.str();
+}
+
 static std::string build_json_report(const ProbeData& data, const FeatureSetResult& set_result) {
     std::ostringstream out;
     std::vector<CandidateHint> hints = collect_candidate_hints(data);
@@ -1401,6 +1551,12 @@ static void print_help(const char* argv0) {
         << "  probes/raw/VID_PID/VID_PID-ifN.txt\n"
         << "  probes/raw/VID_PID/VID_PID-ifN.csv\n"
         << "  probes/raw/VID_PID/VID_PID-ifN.rdesc.hex\n\n"
+        << "Collect bundle layout:\n"
+        << "  probes/VID_PID/report.json\n"
+        << "  probes/VID_PID/report.txt\n"
+        << "  probes/VID_PID/report.csv\n"
+        << "  probes/VID_PID/report_descriptor.hex\n"
+        << "  probes/VID_PID/summary.json\n\n"
         << "Options:\n"
         << "  --save-dir DIR            Base output directory (default: probes/raw)\n"
         << "  --collect                 Save a standardized privacy-safe bundle under probes/VID_PID/\n"
@@ -1444,6 +1600,7 @@ int main(int argc, char** argv) {
     std::string text_path;
     std::string csv_path;
     std::string descriptor_path;
+    std::string summary_path;
     bool no_save = false;
     bool collect_mode = false;
     bool quiet = false;
@@ -1543,6 +1700,9 @@ int main(int argc, char** argv) {
             if (descriptor_path.empty()) {
                 descriptor_path = join_path(output_dir, "report_descriptor.hex");
             }
+            if (summary_path.empty()) {
+                summary_path = join_path(output_dir, "summary.json");
+            }
         } else {
             if (json_path.empty()) {
                 json_path = join_path(output_dir, data.base_filename + ".json");
@@ -1562,6 +1722,10 @@ int main(int argc, char** argv) {
     std::string text_report = build_text_report(data, set_result);
     std::string json_report = build_json_report(data, set_result);
     std::string csv_report = build_csv_report(data);
+    std::string summary_report;
+    if (collect_mode) {
+        summary_report = build_summary_json(data);
+    }
 
     if (!quiet) {
         std::cout << text_report;
@@ -1583,6 +1747,11 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (!summary_path.empty() && !write_text_file(summary_path, summary_report)) {
+        std::cerr << "acdprobe: failed to write summary file: " << summary_path << "\n";
+        return 1;
+    }
+
     if (!descriptor_path.empty()) {
         if (data.report_descriptor_hex.empty()) {
             std::cerr << "acdprobe: report descriptor was not found in sysfs; skipping "
@@ -1601,6 +1770,9 @@ int main(int argc, char** argv) {
     }
     if (!csv_path.empty()) {
         std::cout << "Saved CSV: " << csv_path << "\n";
+    }
+    if (!summary_path.empty()) {
+        std::cout << "Saved summary: " << summary_path << "\n";
     }
     if (!descriptor_path.empty() && !data.report_descriptor_hex.empty()) {
         std::cout << "Saved descriptor hex: " << descriptor_path << "\n";
