@@ -376,6 +376,9 @@ static std::string join_path(const std::string& a, const std::string& b) {
 }
 
 static std::string collect_dirname(const std::string& save_dir, const ProbeData& data) {
+    if (save_dir == "probes/raw") {
+        return join_path("probes", data.vid_pid_key);
+    }
     return join_path(save_dir, data.vid_pid_key);
 }
 
@@ -1080,13 +1083,11 @@ static std::string build_text_report(const ProbeData& data, const FeatureSetResu
     out << "vendor: " << hex_u16(static_cast<unsigned int>(data.devinfo.vendor)) << "\n";
     out << "product: " << hex_u16(static_cast<unsigned int>(data.devinfo.product)) << "\n";
     out << "version: " << hex_u16(static_cast<unsigned int>(data.devinfo.version)) << "\n";
-    out << "busnum: " << data.devinfo.busnum << " devnum: " << data.devinfo.devnum
-        << " ifnum: " << data.devinfo.ifnum << "\n";
+    out << "ifnum: " << data.devinfo.ifnum << "\n";
     out << "num_applications: " << data.devinfo.num_applications << "\n";
     out << "vid_pid_key: " << data.vid_pid_key << "\n";
     out << "base_filename: " << data.base_filename << "\n";
     out << "hid_name: " << (data.hid_name.empty() ? std::string("<unavailable>") : data.hid_name) << "\n";
-    out << "hid_phys: " << (data.hid_phys.empty() ? std::string("<unavailable>") : data.hid_phys) << "\n";
 
     append_feature_set_text(out, set_result);
 
@@ -1112,15 +1113,6 @@ static std::string build_text_report(const ProbeData& data, const FeatureSetResu
                 << " decoded=\"" << decode_usage_code(app) << "\"\n";
         }
     }
-
-    out << "sysfs_hiddev_realpath: "
-        << (data.sysfs_hiddev_realpath.empty() ? std::string("<unavailable>") : data.sysfs_hiddev_realpath) << "\n";
-    out << "sysfs_devchar_realpath: "
-        << (data.sysfs_devchar_realpath.empty() ? std::string("<unavailable>") : data.sysfs_devchar_realpath) << "\n";
-    out << "sysfs_device_realpath: "
-        << (data.sysfs_device_realpath.empty() ? std::string("<unavailable>") : data.sysfs_device_realpath) << "\n";
-    out << "sysfs_report_descriptor_path: "
-        << (data.sysfs_report_descriptor_path.empty() ? std::string("<unavailable>") : data.sysfs_report_descriptor_path) << "\n";
 
     if (!data.report_descriptor_hex.empty()) {
         out << "report_descriptor_hex: " << data.report_descriptor_hex << "\n";
@@ -1234,14 +1226,11 @@ static std::string build_json_report(const ProbeData& data, const FeatureSetResu
     out << "    \"usb_vendor_id\": \"" << hex_u16(static_cast<unsigned int>(data.devinfo.vendor)) << "\",\n";
     out << "    \"usb_product_id\": \"" << hex_u16(static_cast<unsigned int>(data.devinfo.product)) << "\",\n";
     out << "    \"usb_version\": \"" << hex_u16(static_cast<unsigned int>(data.devinfo.version)) << "\",\n";
-    out << "    \"busnum\": " << data.devinfo.busnum << ",\n";
-    out << "    \"devnum\": " << data.devinfo.devnum << ",\n";
     out << "    \"ifnum\": " << data.devinfo.ifnum << "\n";
     out << "  },\n";
 
     out << "  \"identity\": {\n";
     out << "    \"hid_name\": \"" << escape_json(data.hid_name) << "\",\n";
-    out << "    \"hid_phys\": \"" << escape_json(data.hid_phys) << "\",\n";
     out << "    \"strings\": [\n";
     for (std::vector<StringEntry>::size_type i = 0; i < data.strings.size(); ++i) {
         out << "      { \"index\": " << data.strings[i].index
@@ -1299,14 +1288,6 @@ static std::string build_json_report(const ProbeData& data, const FeatureSetResu
         out << "\n";
     }
     out << "  ],\n";
-
-    out << "  \"sysfs\": {\n";
-    out << "    \"hiddev_realpath\": \"" << escape_json(data.sysfs_hiddev_realpath) << "\",\n";
-    out << "    \"devchar_realpath\": \"" << escape_json(data.sysfs_devchar_realpath) << "\",\n";
-    out << "    \"device_realpath\": \"" << escape_json(data.sysfs_device_realpath) << "\",\n";
-    out << "    \"report_descriptor_path\": \"" << escape_json(data.sysfs_report_descriptor_path) << "\",\n";
-    out << "    \"report_descriptor_hex\": \"" << escape_json(data.report_descriptor_hex) << "\"\n";
-    out << "  },\n";
 
     out << "  \"decoded_hints\": [\n";
     for (std::vector<CandidateHint>::size_type i = 0; i < hints.size(); ++i) {
@@ -1421,8 +1402,8 @@ static void print_help(const char* argv0) {
         << "  probes/raw/VID_PID/VID_PID-ifN.csv\n"
         << "  probes/raw/VID_PID/VID_PID-ifN.rdesc.hex\n\n"
         << "Options:\n"
-        << "  --save-dir DIR            Base raw output directory (default: probes/raw)\n"
-        << "  --collect                 Save a standardized report bundle under probes/VID_PID/\n"
+        << "  --save-dir DIR            Base output directory (default: probes/raw)\n"
+        << "  --collect                 Save a standardized privacy-safe bundle under probes/VID_PID/\n"
         << "  --json PATH               Save full JSON report\n"
         << "  --text PATH               Save human-readable text report\n"
         << "  --csv PATH                Save flat CSV of all usages\n"
