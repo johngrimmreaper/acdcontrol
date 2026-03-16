@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#define ACDPROBE_VERSION "0.5"
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
@@ -1206,7 +1207,7 @@ static std::string build_json_report(const ProbeData& data, const FeatureSetResu
     out << "  \"timestamp_utc\": \"" << now_utc_iso8601() << "\",\n";
     out << "  \"probe_tool\": {\n";
     out << "    \"name\": \"acdprobe\",\n";
-    out << "    \"version\": \"0.3.0\"\n";
+    out << "    \"version\": \"" << ACDPROBE_VERSION << "\"\n";
     out << "  },\n";
 
     out << "  \"submission\": {\n";
@@ -1391,7 +1392,7 @@ static std::string usage_summary(const ProbeData& data) {
 
 static void print_help(const char* argv0) {
     std::cout
-        << "acdprobe 0.3.0\n"
+        << "acdprobe " << ACDPROBE_VERSION << "\n"
         << "Usage:\n"
         << "  " << argv0 << " /dev/acdctl4\n"
         << "  " << argv0 << " /dev/acdctl4 --no-save\n"
