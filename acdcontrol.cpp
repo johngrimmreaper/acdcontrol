@@ -465,6 +465,7 @@ int main (int argc, char **argv) {
              << ".\t";
         format_device( cout, device_info );
       }
+      close(fd);
       continue;
     }
 
@@ -478,6 +479,7 @@ int main (int argc, char **argv) {
     
     if (! is_usb_monitor( device_info, fd )) {
       cerr << *it << ": This device is NOT USB monitor!" << endl;
+      close(fd);
       continue;
     }
     
