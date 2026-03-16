@@ -371,7 +371,7 @@ int main (int argc, char **argv) {
     switch (c) {
     case 'a':
       about();
-      exit( 0 );
+      return 0;
         
     case 'b':
       brief=true;
@@ -379,8 +379,7 @@ int main (int argc, char **argv) {
         
     case 'h':
       help( argv[0] );
-      exit( 0 );
-      break;
+      return 0;
         
     case 's':
       silent=true;
@@ -396,12 +395,12 @@ int main (int argc, char **argv) {
 
     case 'l':
       dump_supported();
-      exit( 0 );
+      return 0;
         
     default:
       fprintf (stderr,"Unknown option '%c'\n", c);
       help( argv[0] );
-      exit( 2 );
+      return 2;
     }
   }
 
@@ -438,7 +437,7 @@ int main (int argc, char **argv) {
 
   if ( files.empty() ) {
     help( argv[0] );
-    exit( 1 );
+    return 1;
   }
 
   if ( mode == SET || mode == SETREL ) {
