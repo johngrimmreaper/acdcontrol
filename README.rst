@@ -1,125 +1,202 @@
-=======================================
+======================================
 Apple Cinema Display Brightness Control
-=======================================
+======================================
+
+``acdcontrol`` is a small utility for querying and changing the brightness of
+supported Apple Cinema and Studio Displays through the HID interface exposed by
+Linux.
+
+Maintainer
+----------
+
+Project currently maintained by John Grimm, also known as Reaper.
+
+Repository::
+
+    https://github.com/johngrimmreaper/acdcontrol
 
 Compiling
 ---------
 
 Clone this repository::
 
-    git clone https://github.com/warvariuc/acdcontrol.git
+    git clone https://github.com/johngrimmreaper/acdcontrol.git
 
-Change to program directory and compile it::
+Change to the program directory and build it::
 
     cd acdcontrol
     make
 
-A new file ``acdcontrol`` should appear in the same directory. If compiling failed, check if you
-have installed packages necessary for compiling (e.g. ``build-essential``).
+A new file named ``acdcontrol`` should appear in the same directory. If the
+build fails, make sure the required development tools are installed, for example
+``build-essential`` on Debian/Ubuntu systems.
 
-You can now install the program (into /usr/local/bin/) and its udev rules using
+Installation
+------------
 
-    make install
-    # Reload udev configuration file
+Install the program into ``/usr/local/bin`` and install the udev rules::
+
+    sudo make install
+
+Reload the udev configuration and trigger the updated rules::
+
     sudo udevadm control --reload
-    # Trigger udev rules 
     sudo udevadm trigger
-    
-or
 
-execute the ./acd-compile.sh script, that will execute the docker-compose.yml file. (requires that docker, docker-compose is installed)
+Remove the installed files with::
+
+    sudo make uninstall
+
+For staged installs and packaging, you can override the install paths. For
+example::
+
+    make install DESTDIR=/tmp/acd-stage
+
+You can also use the helper script::
+
+    ./acd-compile.sh
+
+This uses the included ``docker-compose.yml`` file and requires Docker and
+Docker Compose.
 
 Usage
 -----
 
 ::
 
-  ./acdcontrol [--silent|-s] [--brief|-b] [--help|-h] [--about|-a] [--detect|-d] [--list-all|-l] <hid device(s)> [<brightness>]
+    ./acdcontrol [--silent|-s] [--brief|-b] [--help|-h] [--about|-a] \
+                 [--detect|-d] [--list-all|-l] /dev/acdctlX [brightness]
 
-
-NOTE: It should be safe to run the program on other device than Apple Cinema/Studio display as
-the program checks whether the device is Apple display and warns about it.
-
+It should be safe to run the program against other HID devices while detecting
+supported displays, because detection mode does not write brightness values.
 
 Parameters
 ----------
 
-\-s, --silent
-    Suppress non-functional program output
+``-s``, ``--silent``
+    Suppress non-functional program output.
 
-\-b, --brief
-    Print brightness value only when in query mode, otherwise ignored.
+``-b``, ``--brief``
+    Print only the brightness value in query mode.
 
-\-h, --help
-    Show short help message and quit.
+``-h``, ``--help``
+    Show help and exit.
 
-\-a, --about
-    Show information about the program, some credits and thanks.
+``-a``, ``--about``
+    Show program information, credits, and thanks.
 
-\-d, --detect
-    Run program in the detection mode. In this mode no writes are performed to device so you can
-    use any number of files if you are not sure that your monitor(s) are supported.
+``-d``, ``--detect``
+    Run detection mode. In this mode no brightness writes are performed, which
+    makes it safer to probe candidate HID devices.
 
-\-l, --list-all
-    Lists all "officially" supported monitors and quits. If you do not see the device, this does
-    not mean that it won't work it simply means that I did not tested it on such a device. I'll
-    appreciate if you submit your information in the forum for any display that works hid device
-    device that represents your Apple Cinema display. It should be one of ``/dev/acdctlX``
+``-l``, ``--list-all``
+    List all officially supported monitors and exit. A display not appearing in
+    this list does not necessarily mean it will not work; it may simply mean it
+    was not tested yet.
 
-brightness
-    When this option is specified, the operation is to set brightness, otherwise, the current
-    brightness is retrieved. If brightness starts with ``+`` or ``-``, the current brightness is
-    increased or decreased by that value. (Note: You have to place -- before the negative value!)
+``/dev/acdctlX``
+    The HID device node that represents your Apple Cinema or Studio Display.
 
-    Brightness is a parameter ranged ``[0-255]``.
-    Note, that not every value toggles the backlight power; different Apple Display models have
-    different granularity. I use Apple Cinema 20" (clear plastic) and I'm feeling comfortable with
-    the value of 160. I set 0, however, to see films in the darkness.
+``brightness``
+    If omitted, the current brightness is queried. If provided, the brightness
+    is changed.
 
-    See also: ``--brief`` option and "Known Limitations" section.
+    Absolute form::
 
+        160
 
-Usage examples
---------------
+    Relative increment::
 
-acdcontrol --help
-    Show long help message.
+        +10
 
-acdcontrol --detect /dev/acdctl*
-    Perform detection, which HID device is actually your display to be controlled.
+    Relative decrement (note the required ``--`` before the negative value)::
 
-acdcontrol /dev/acdctl0
-    Read current brightness parameter
+        -- -10
 
-acdcontrol /dev/acdctl0 160
-    Set brightness to 160. Note, that brightness setting depends on your model. Generally, this
-    parameter may get values in the range ``[0-255]``.
+Brightness behavior and useful values may vary depending on the display model.
 
-acdcontrol /dev/acdctl0 +10
-    Increment current brightness by 10.
+Examples
+--------
 
-acdcontrol /dev/acdctl0 -- -10
-    Decrement current brightness by 10. Please,note ``--``!
+Show help::
 
+    ./acdcontrol --help
+
+Detect which HID device belongs to the display::
+
+    ./acdcontrol --detect /dev/acdctl*
+
+Read the current brightness::
+
+    ./acdcontrol /dev/acdctl0
+
+Set an absolute brightness value::
+
+    ./acdcontrol /dev/acdctl0 160
+
+Increase brightness by 10::
+
+    ./acdcontrol /dev/acdctl0 +10
+
+Decrease brightness by 10::
+
+    ./acdcontrol /dev/acdctl0 -- -10
 
 Sample Profiles
-----------
+---------------
 
-00profile-low.sh
-    Set brightness over usb to 0
+``00profile-low.sh``
+    Set brightness to a low level.
 
-01profile-middle.sh
-    Set brightness over usb to 127.5
+``01profile-middle.sh``
+    Set brightness to a medium level.
 
-02profile-high.sh
-    Set brightness over usb to 255
+``02profile-high.sh``
+    Set brightness to a high level.
+
+Useful Makefile Targets
+-----------------------
+
+Build the binary::
+
+    make
+
+Remove the built binary::
+
+    make clean
+
+Create a release archive::
+
+    make release
+
+Install files into the live system::
+
+    sudo make install
+
+Remove installed files from the live system::
+
+    sudo make uninstall
+
+Stage files into an alternate root directory::
+
+    make install DESTDIR=/tmp/acd-stage
 
 Known Limitations
 -----------------
 
-Currently, the display detection process is not fully automated as you need to specify a HID
-device path.
+The display detection process is not fully automatic yet, because you still
+need to point the tool at a candidate HID device path.
 
-First time (after boot up) brightness is retrieved *incorrectly* (zero value), however, after it is
-set, the return value is correct. It shouldn't concern you much as Cinema/Studio Display stores
-actual brightness settings between the sessions.
+On some systems, the first brightness read after boot may be inaccurate until a
+brightness value is written once. After that, readings are expected to be
+correct.
+
+In practice, this is usually not a major issue because Cinema and Studio
+Displays store their brightness settings across sessions.
+
+Release 0.5 highlights
+----------------------
+
+* Stricter brightness argument validation
+* Clearer CLI error messages
+* Improved Makefile targets for build, install, uninstall, and release packaging
