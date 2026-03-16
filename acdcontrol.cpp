@@ -168,7 +168,7 @@ bool is_usb_monitor ( const hiddev_devinfo& device_info, int fd ) {
   /* Now that we have the number of applications, we can retrieve them */
   /* using the HIDIOCAPPLICATION ioctl() call */
   /* applications are indexed from 0..{num_applications-1} */
-  for ( int appl_num = 0; appl_num < device_info.num_applications;
+  for ( __u32 appl_num = 0; appl_num < device_info.num_applications;
         ++appl_num ) {
     int application = ioctl( fd, HIDIOCAPPLICATION, appl_num );
     /* The magic values come from various usage table specs */
