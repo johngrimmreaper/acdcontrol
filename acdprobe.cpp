@@ -1542,6 +1542,9 @@ static void print_help(const char* argv0) {
         << "  " << argv0 << " /dev/acdctl4\n"
         << "  " << argv0 << " /dev/acdctl4 --no-save\n"
         << "  " << argv0 << " --collect /dev/acdctl4\n"
+        << "  " << argv0 << " --profile basic-readonly /dev/acdctl4\n"
+        << "  " << argv0 << " --profile als-discovery /dev/acdctl4 --set-feature "
+        << kFeatureReportAmbientLightSensor << " 0 0 2\n"
         << "  " << argv0 << " /dev/acdctl4 --set-feature "
         << kFeatureReportAmbientLightSensor << " 0 0 2\n"
         << "  " << argv0 << " /dev/acdctl4 --set-feature "
@@ -1560,15 +1563,30 @@ static void print_help(const char* argv0) {
         << "Options:\n"
         << "  --save-dir DIR            Base output directory (default: probes/raw)\n"
         << "  --collect                 Save a standardized privacy-safe bundle under probes/VID_PID/\n"
+        << "  --profile NAME           Use a named profile: basic-readonly, full-readonly, als-discovery\n"
         << "  --json PATH               Save full JSON report\n"
         << "  --text PATH               Save human-readable text report\n"
         << "  --csv PATH                Save flat CSV of all usages\n"
         << "  --descriptor PATH         Save raw report descriptor hex dump\n"
         << "  --set-feature R F U V     Set one feature usage and read it back\n"
+        << "                            Readonly profiles reject writes; als-discovery allows experimental writes\n"
         << "  --readback-delay-ms N     Optional delayed readback after write\n"
         << "  --no-save                 Print only; do not auto-save files\n"
         << "  --quiet                   Do not print the text report to stdout\n"
         << "  --help                    Show this help\n";
+}
+
+
+static bool is_readonly_profile(const std::string& profile_name) {
+    return profile_name == "basic-readonly" || profile_name == "full-readonly";
+}
+
+static bool is_experimental_profile(const std::string& profile_name) {
+    return profile_name == "als-discovery";
+}
+
+static bool is_known_profile(const std::string& profile_name) {
+    return is_readonly_profile(profile_name) || is_experimental_profile(profile_name);
 }
 
 static bool parse_uint_arg(const std::string& s, unsigned int& out) {
@@ -1604,6 +1622,7 @@ int main(int argc, char** argv) {
     bool no_save = false;
     bool collect_mode = false;
     bool quiet = false;
+    std::string profile_name;
     FeatureSetRequest set_request;
 
     for (int i = 1; i < argc; ++i) {
@@ -1616,6 +1635,8 @@ int main(int argc, char** argv) {
             save_dir = argv[++i];
         } else if (arg == "--collect") {
             collect_mode = true;
+        } else if (arg == "--profile" && i + 1 < argc) {
+            profile_name = argv[++i];
         } else if (arg == "--json" && i + 1 < argc) {
             json_path = argv[++i];
         } else if (arg == "--text" && i + 1 < argc) {
@@ -1660,6 +1681,26 @@ int main(int argc, char** argv) {
     if (device_node.empty()) {
         print_help(argv[0]);
         return 2;
+    }
+
+    if (!profile_name.empty()) {
+        if (!is_known_profile(profile_name)) {
+            std::cerr << "acdprobe: unknown profile: " << profile_name << "\n";
+            print_help(argv[0]);
+            return 2;
+        }
+        collect_mode = true;
+    }
+
+    if (set_request.enabled && is_readonly_profile(profile_name)) {
+        std::cerr << "acdprobe: profile " << profile_name
+                  << " is readonly and cannot be used with --set-feature\n";
+        return 2;
+    }
+
+    if (set_request.enabled && is_experimental_profile(profile_name)) {
+        std::cerr << "acdprobe: experimental write enabled by profile "
+                  << profile_name << "\n";
     }
 
     FeatureSetResult set_result;
