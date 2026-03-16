@@ -472,8 +472,10 @@ int main (int argc, char **argv) {
     if ( !is_supported ( device_info ) ){
       cerr << "Device unsupported:";
       format_device(cerr, device_info);
-      if ( !force )
+      if ( !force ) {
+        close(fd);
         exit ( 2 );
+      }
     }
     
     
@@ -487,6 +489,7 @@ int main (int argc, char **argv) {
     if (ioctl(fd, HIDIOCINITREPORT,0) < 0) {
       cerr << "FATAL: Failed to initialize internal report structures"
            << endl;
+      close(fd);
       exit(1);
     }
     
