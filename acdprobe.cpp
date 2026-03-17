@@ -121,16 +121,11 @@ struct FeatureSetResult {
 };
 
 struct UsbSysfsIdentity {
-    std::string device_realpath;
     std::string manufacturer;
     std::string product;
-    std::string serial;
     std::string id_vendor;
     std::string id_product;
     std::string bcd_device;
-    std::string busnum;
-    std::string devnum;
-    std::string speed;
 };
 
 struct ProbeData {
@@ -549,20 +544,16 @@ static std::string find_usb_sysfs_device_path(const std::string& start) {
     return "";
 }
 
-static void read_usb_sysfs_identity(UsbSysfsIdentity& identity) {
-    if (identity.device_realpath.empty()) {
+static void read_usb_sysfs_identity(const std::string& usb_device_path, UsbSysfsIdentity& identity) {
+    if (usb_device_path.empty()) {
         return;
     }
 
-    read_text_file_trimmed(join_path(identity.device_realpath, "manufacturer"), identity.manufacturer);
-    read_text_file_trimmed(join_path(identity.device_realpath, "product"), identity.product);
-    read_text_file_trimmed(join_path(identity.device_realpath, "serial"), identity.serial);
-    read_text_file_trimmed(join_path(identity.device_realpath, "idVendor"), identity.id_vendor);
-    read_text_file_trimmed(join_path(identity.device_realpath, "idProduct"), identity.id_product);
-    read_text_file_trimmed(join_path(identity.device_realpath, "bcdDevice"), identity.bcd_device);
-    read_text_file_trimmed(join_path(identity.device_realpath, "busnum"), identity.busnum);
-    read_text_file_trimmed(join_path(identity.device_realpath, "devnum"), identity.devnum);
-    read_text_file_trimmed(join_path(identity.device_realpath, "speed"), identity.speed);
+    read_text_file_trimmed(join_path(usb_device_path, "manufacturer"), identity.manufacturer);
+    read_text_file_trimmed(join_path(usb_device_path, "product"), identity.product);
+    read_text_file_trimmed(join_path(usb_device_path, "idVendor"), identity.id_vendor);
+    read_text_file_trimmed(join_path(usb_device_path, "idProduct"), identity.id_product);
+    read_text_file_trimmed(join_path(usb_device_path, "bcdDevice"), identity.bcd_device);
 }
 
 static std::string collect_dirname(const std::string& save_dir, const ProbeData& data) {
@@ -857,8 +848,7 @@ static void detect_sysfs_paths(ProbeData& data) {
         usb_device_realpath = find_usb_sysfs_device_path(data.sysfs_devchar_realpath);
     }
 
-    data.usb_sysfs_identity.device_realpath = usb_device_realpath;
-    read_usb_sysfs_identity(data.usb_sysfs_identity);
+    read_usb_sysfs_identity(usb_device_realpath, data.usb_sysfs_identity);
 }
 
 static void build_identity_keys(ProbeData& data) {
@@ -1321,16 +1311,11 @@ static std::string build_text_report(const ProbeData& data, const FeatureSetResu
     }
 
     out << "usb_sysfs:\n";
-    out << "  device_realpath: " << (data.usb_sysfs_identity.device_realpath.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.device_realpath) << "\n";
     out << "  manufacturer: " << (data.usb_sysfs_identity.manufacturer.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.manufacturer) << "\n";
     out << "  product: " << (data.usb_sysfs_identity.product.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.product) << "\n";
-    out << "  serial: " << (data.usb_sysfs_identity.serial.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.serial) << "\n";
     out << "  idVendor: " << (data.usb_sysfs_identity.id_vendor.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.id_vendor) << "\n";
     out << "  idProduct: " << (data.usb_sysfs_identity.id_product.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.id_product) << "\n";
     out << "  bcdDevice: " << (data.usb_sysfs_identity.bcd_device.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.bcd_device) << "\n";
-    out << "  busnum: " << (data.usb_sysfs_identity.busnum.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.busnum) << "\n";
-    out << "  devnum: " << (data.usb_sysfs_identity.devnum.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.devnum) << "\n";
-    out << "  speed: " << (data.usb_sysfs_identity.speed.empty() ? std::string("<unavailable>") : data.usb_sysfs_identity.speed) << "\n";
 
     if (!data.report_descriptor_hex.empty()) {
         out << "report_descriptor_hex: " << data.report_descriptor_hex << "\n";
@@ -1665,17 +1650,11 @@ static std::string build_summary_json(const ProbeData& data) {
     out << "    \"manufacturer_string\": \"" << escape_json(manufacturer_string) << "\",\n";
     out << "    \"product_string\": \"" << escape_json(product_string) << "\",\n";
     out << "    \"usb_sysfs\": {\n";
-    out << "      \"device_realpath\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.device_realpath);
-    out << ",\n";
     out << "      \"manufacturer\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.manufacturer);
     out << ",\n";
     out << "      \"product\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.product);
-    out << ",\n";
-    out << "      \"serial\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.serial);
     out << ",\n";
     out << "      \"idVendor\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.id_vendor);
@@ -1685,15 +1664,6 @@ static std::string build_summary_json(const ProbeData& data) {
     out << ",\n";
     out << "      \"bcdDevice\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.bcd_device);
-    out << ",\n";
-    out << "      \"busnum\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.busnum);
-    out << ",\n";
-    out << "      \"devnum\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.devnum);
-    out << ",\n";
-    out << "      \"speed\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.speed);
     out << "\n";
     out << "    }\n";
     out << "  },\n";
@@ -1843,24 +1813,6 @@ static std::string build_json_report(const ProbeData& data, const FeatureSetResu
     out << "    \"ifnum\": " << data.devinfo.ifnum << "\n";
     out << "  },\n";
 
-    out << "  \"sysfs\": {\n";
-    out << "    \"hiddev_realpath\": ";
-    append_json_string_or_null(out, data.sysfs_hiddev_realpath);
-    out << ",\n";
-    out << "    \"devchar_realpath\": ";
-    append_json_string_or_null(out, data.sysfs_devchar_realpath);
-    out << ",\n";
-    out << "    \"device_realpath\": ";
-    append_json_string_or_null(out, data.sysfs_device_realpath);
-    out << ",\n";
-    out << "    \"usb_device_realpath\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.device_realpath);
-    out << ",\n";
-    out << "    \"report_descriptor_path\": ";
-    append_json_string_or_null(out, data.sysfs_report_descriptor_path);
-    out << "\n";
-    out << "  },\n";
-
     out << "  \"identity\": {\n";
     out << "    \"hid_name\": \"" << escape_json(data.hid_name) << "\",\n";
     out << "    \"usb_sysfs\": {\n";
@@ -1870,9 +1822,6 @@ static std::string build_json_report(const ProbeData& data, const FeatureSetResu
     out << "      \"product\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.product);
     out << ",\n";
-    out << "      \"serial\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.serial);
-    out << ",\n";
     out << "      \"idVendor\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.id_vendor);
     out << ",\n";
@@ -1881,15 +1830,6 @@ static std::string build_json_report(const ProbeData& data, const FeatureSetResu
     out << ",\n";
     out << "      \"bcdDevice\": ";
     append_json_string_or_null(out, data.usb_sysfs_identity.bcd_device);
-    out << ",\n";
-    out << "      \"busnum\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.busnum);
-    out << ",\n";
-    out << "      \"devnum\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.devnum);
-    out << ",\n";
-    out << "      \"speed\": ";
-    append_json_string_or_null(out, data.usb_sysfs_identity.speed);
     out << "\n";
     out << "    },\n";
     out << "    \"strings\": [\n";
