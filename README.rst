@@ -314,18 +314,26 @@ The filenames do not include timestamps or usernames.
 Artifact review before sharing
 ------------------------------
 
-The stable collection bundle is intended to be reviewable and shareable, but it
-is no longer purely topology-free. Current output may include USB/sysfs
-identity breadcrumbs such as:
+The stable collection bundle is intended to be reviewable and shareable.
+Current collected output is privacy-focused by default:
 
-* ``device_realpath``
-* ``busnum``
-* ``devnum``
-* ``speed``
-* USB identity fields such as ``idVendor``, ``idProduct``, and ``bcdDevice``
+* host-specific USB topology and path details are omitted
+* no sysfs realpaths are emitted
+* no runtime USB bus/device numbering is emitted
+* no USB serial string is emitted
+* filenames do not include usernames or timestamps
 
-Review generated artifacts before publishing them if host topology disclosure is
-sensitive in your environment.
+The retained USB/sysfs identity fields are limited to device-level comparison
+signals that help correlate submissions across the same monitor family:
+
+* ``manufacturer``
+* ``product``
+* ``idVendor``
+* ``idProduct``
+* ``bcdDevice``
+
+This keeps contributed bundles useful for reverse engineering without exposing
+host topology or per-unit serial identity.
 
 Build
 -----
@@ -406,24 +414,18 @@ Collect mode also writes a compact ``summary.json`` file with:
 * ``schema_version``
 * tool name and version
 * compact device identification fields
-* USB/sysfs identity fields
+* privacy-filtered USB/sysfs identity fields
 * application summary
 * report counts
 * report descriptor fingerprint
 * enriched controls with current value, range, flags, units, report metadata,
   application context, usage context, field logical/physical values, and
   confidence labels
-* dedicated ``telemetry_candidates`` summaries for unresolved vendor-private
+* a dedicated ``telemetry_candidates`` section for unresolved vendor-private
   controls
 
 This summary is intended to make future per-model databases, compatibility
 indexes, and cross-platform comparisons easier to build.
-
-The human-readable ``report.txt`` output also includes a dedicated
-``telemetry_candidates:`` section that highlights unresolved vendor-private
-controls, their current values, ranges, flags, confidence labels, readability,
-and a coarse ``looks_like`` classification such as ``boolean`` or
-``blob-like``.
 
 Known findings for Apple LED Cinema Display 27-inch
 ---------------------------------------------------
@@ -480,12 +482,13 @@ That document describes:
 
 * the purpose of ``summary.json``
 * top-level fields and their meanings
+* the privacy model for collected USB/sysfs metadata
 * control-level metadata and current value encoding
+* the dedicated ``telemetry_candidates`` section for unresolved vendor-private
+  controls
 * schema stability expectations
 * confidence labels such as ``known``, ``candidate``, ``tentative``,
   ``observed``, and ``unknown``
-* the ``telemetry_candidates`` section and ``looks_like`` classifications used
-  to summarize unresolved vendor-private controls
 
 Contributors reviewing or submitting probe bundles should start with
 ``summary.json`` and use the schema document as the reference for interpreting
