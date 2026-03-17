@@ -171,6 +171,8 @@ struct SummaryControl {
     int physical_maximum;
     unsigned int field_flags;
     std::string field_flags_text;
+    int unit_exponent;
+    int unit;
     unsigned int usage_count;
     bool is_single_value;
     unsigned int value_count;
@@ -179,8 +181,8 @@ struct SummaryControl {
     SummaryControl()
         : report_type(0), report_id(0), field_index(0), usage_code(0),
           logical_minimum(0), logical_maximum(0), physical_minimum(0),
-          physical_maximum(0), field_flags(0), usage_count(0),
-          is_single_value(true), value_count(0) {}
+          physical_maximum(0), field_flags(0), unit_exponent(0), unit(0),
+          usage_count(0), is_single_value(true), value_count(0) {}
 };
 
 struct ReportDescriptorFingerprint {
@@ -1455,6 +1457,8 @@ static std::vector<SummaryControl> collect_summary_controls(const ProbeData& dat
                     control.physical_maximum = f->info.physical_maximum;
                     control.field_flags = f->info.flags;
                     control.field_flags_text = field_flags_to_string(f->info.flags);
+                    control.unit_exponent = f->info.unit_exponent;
+                    control.unit = f->info.unit;
                     control.usage_count = f->usages.size();
                     control.value_count = f->usages.size();
                     control.is_single_value = (control.value_count <= 1U);
@@ -1600,6 +1604,8 @@ static std::string build_summary_json(const ProbeData& data) {
         out << "      \"physical_maximum\": " << control.physical_maximum << ",\n";
         out << "      \"field_flags\": " << control.field_flags << ",\n";
         out << "      \"field_flags_text\": \"" << escape_json(control.field_flags_text) << "\",\n";
+        out << "      \"unit_exponent\": " << control.unit_exponent << ",\n";
+        out << "      \"unit\": " << control.unit << ",\n";
         out << "      \"usage_count\": " << control.usage_count << ",\n";
         out << "      \"is_single_value\": " << (control.is_single_value ? "true" : "false") << ",\n";
         out << "      \"value_count\": " << control.value_count << ",\n";
