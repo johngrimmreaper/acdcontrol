@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <cstdint>
 
 #include <fstream>
 #include <iomanip>
@@ -149,6 +150,7 @@ struct ProbeData {
     std::string sysfs_device_realpath;
     std::string sysfs_report_descriptor_path;
     std::string report_descriptor_hex;
+    std::string report_descriptor_bytes;
     UsbSysfsIdentity usb_sysfs_identity;
 
     std::string vid_pid_key;
@@ -161,6 +163,13 @@ struct SummaryControl {
     std::string name;
     std::string confidence;
     std::vector<int> current_values;
+};
+
+struct ReportDescriptorFingerprint {
+    bool available;
+    std::string fnv1a64_hex;
+    std::string preview_hex;
+    std::string::size_type byte_count;
 };
 
 
@@ -384,6 +393,37 @@ static std::string bytes_to_hex(const std::string& bytes) {
             out << ' ';
         }
     }
+    return out.str();
+}
+
+static const uint64_t kFNV1a64OffsetBasis = 0xcbf29ce484222325ULL;
+static const uint64_t kFNV1a64Prime = 0x100000001b3ULL;
+
+static uint64_t fnv1a64_bytes(const std::string& bytes) {
+    uint64_t hash = kFNV1a64OffsetBasis;
+    for (std::string::size_type i = 0; i < bytes.size(); ++i) {
+        hash ^= static_cast<unsigned char>(bytes[i]);
+        hash *= kFNV1a64Prime;
+    }
+    return hash;
+}
+
+static std::string bytes_to_preview_hex(const std::string& bytes, std::string::size_type max_bytes) {
+    if (bytes.empty() || max_bytes == 0) {
+        return "";
+    }
+
+    std::string::size_type preview_len = bytes.size();
+    if (preview_len > max_bytes) {
+        preview_len = max_bytes;
+    }
+
+    return bytes_to_hex(bytes.substr(0, preview_len));
+}
+
+static std::string hex_u64(uint64_t value) {
+    std::ostringstream out;
+    out << "0x" << std::hex << std::setw(16) << std::setfill('0') << value;
     return out.str();
 }
 
@@ -751,6 +791,7 @@ static void detect_sysfs_paths(ProbeData& data) {
         data.sysfs_report_descriptor_path = descriptor_path;
         std::string bytes;
         if (read_binary_file(descriptor_path, bytes)) {
+            data.report_descriptor_bytes = bytes;
             data.report_descriptor_hex = bytes_to_hex(bytes);
         }
     }
@@ -1398,6 +1439,21 @@ static std::vector<SummaryControl> collect_summary_controls(const ProbeData& dat
     return controls;
 }
 
+static ReportDescriptorFingerprint build_report_descriptor_fingerprint(const ProbeData& data) {
+    ReportDescriptorFingerprint fingerprint;
+    fingerprint.available = !data.report_descriptor_bytes.empty();
+    fingerprint.byte_count = data.report_descriptor_bytes.size();
+    fingerprint.fnv1a64_hex = "";
+    fingerprint.preview_hex = "";
+
+    if (fingerprint.available) {
+        fingerprint.fnv1a64_hex = hex_u64(fnv1a64_bytes(data.report_descriptor_bytes));
+        fingerprint.preview_hex = bytes_to_preview_hex(data.report_descriptor_bytes, 16);
+    }
+
+    return fingerprint;
+}
+
 static void append_json_string_or_null(std::ostream& out, const std::string& value) {
     if (value.empty()) {
         out << "null";
@@ -1475,6 +1531,17 @@ static std::string build_summary_json(const ProbeData& data) {
     out << "    \"input_count\": " << data.input_reports.size() << ",\n";
     out << "    \"output_count\": " << data.output_reports.size() << ",\n";
     out << "    \"feature_count\": " << data.feature_reports.size() << "\n";
+    out << "  },\n";
+    ReportDescriptorFingerprint descriptor_fingerprint = build_report_descriptor_fingerprint(data);
+    out << "  \"report_descriptor\": {\n";
+    out << "    \"available\": " << (descriptor_fingerprint.available ? "true" : "false") << ",\n";
+    out << "    \"byte_count\": " << descriptor_fingerprint.byte_count << ",\n";
+    out << "    \"fnv1a64\": ";
+    append_json_string_or_null(out, descriptor_fingerprint.fnv1a64_hex);
+    out << ",\n";
+    out << "    \"preview_hex\": ";
+    append_json_string_or_null(out, descriptor_fingerprint.preview_hex);
+    out << "\n";
     out << "  },\n";
     out << "  \"controls\": [\n";
     for (std::vector<SummaryControl>::size_type i = 0; i < controls.size(); ++i) {
