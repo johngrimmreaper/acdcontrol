@@ -228,6 +228,7 @@ struct MacOSParameterHint {
 
 
 static std::vector<TelemetryCandidate> collect_vendor_private_telemetry_candidates(const ProbeData& data);
+static std::vector<MacOSParameterHint> collect_macos_parameter_hints(const ProbeData& data);
 
 static std::string now_utc_iso8601() {
     std::time_t now = std::time(NULL);
@@ -1338,6 +1339,23 @@ static std::string build_text_report(const ProbeData& data, const FeatureSetResu
     } else {
         for (std::vector<CandidateHint>::size_type i = 0; i < hints.size(); ++i) {
             out << "  [" << hints[i].level << "] " << hints[i].text << "\n";
+        }
+    }
+
+    std::vector<MacOSParameterHint> macos_parameter_hints = collect_macos_parameter_hints(data);
+    out << "macos_parameter_hints:\n";
+    if (macos_parameter_hints.empty()) {
+        out << "  <none>\n";
+    } else {
+        for (std::vector<MacOSParameterHint>::size_type i = 0; i < macos_parameter_hints.size(); ++i) {
+            const MacOSParameterHint& hint = macos_parameter_hints[i];
+            out << "  [" << i << "] "
+                << "parameter=" << hint.parameter
+                << " status=" << hint.status
+                << " usage_code=" << (hint.usage_code == 0U ? std::string("<none>") : hex_u32(hint.usage_code))
+                << " decoded=\"" << (hint.usage_decoded.empty() ? std::string("<none>") : hint.usage_decoded) << "\""
+                << " note=\"" << hint.note << "\""
+                << "\n";
         }
     }
 
