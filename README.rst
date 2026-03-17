@@ -413,9 +413,17 @@ Collect mode also writes a compact ``summary.json`` file with:
 * enriched controls with current value, range, flags, units, report metadata,
   application context, usage context, field logical/physical values, and
   confidence labels
+* dedicated ``telemetry_candidates`` summaries for unresolved vendor-private
+  controls
 
 This summary is intended to make future per-model databases, compatibility
 indexes, and cross-platform comparisons easier to build.
+
+The human-readable ``report.txt`` output also includes a dedicated
+``telemetry_candidates:`` section that highlights unresolved vendor-private
+controls, their current values, ranges, flags, confidence labels, readability,
+and a coarse ``looks_like`` classification such as ``boolean`` or
+``blob-like``.
 
 Known findings for Apple LED Cinema Display 27-inch
 ---------------------------------------------------
@@ -476,6 +484,8 @@ That document describes:
 * schema stability expectations
 * confidence labels such as ``known``, ``candidate``, ``tentative``,
   ``observed``, and ``unknown``
+* the ``telemetry_candidates`` section and ``looks_like`` classifications used
+  to summarize unresolved vendor-private controls
 
 Contributors reviewing or submitting probe bundles should start with
 ``summary.json`` and use the schema document as the reference for interpreting

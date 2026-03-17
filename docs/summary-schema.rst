@@ -112,6 +112,10 @@ Current Top-Level Fields
 ``report_descriptor``
     Compact fingerprint and preview of the HID report descriptor.
 
+``telemetry_candidates``
+    Array of condensed summaries for unresolved vendor-private controls that
+    are useful for reverse-engineering and cross-device comparison.
+
 ``controls``
     Array of normalized control summaries, including known, candidate,
     tentative, and observed controls.
@@ -330,6 +334,107 @@ Example::
       "fnv1a64": "0xf2f86cccedaaf3cf",
       "preview_hex": "05 80 09 01 a1 01 75 10 95 01 15 00 26 ff 03 06"
     }
+
+
+``telemetry_candidates``
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Type:
+    array of objects
+
+Purpose:
+    Surface unresolved vendor-private controls in a compact form so reviewers
+    can compare likely telemetry or status fields without reading the full raw
+    report dump first.
+
+Selection rule:
+    The current implementation includes unresolved vendor-private controls that
+    are still under investigation and omits already-known public controls such
+    as brightness and the standard ambient-light-sensor control.
+
+Current fields:
+
+``report_type``
+    Report type string, currently typically ``feature``.
+
+``report_id``
+    HID report ID containing the candidate control.
+
+``field_index``
+    Field index within the report.
+
+``usage_code``
+    Full HID usage code as hexadecimal string.
+
+``usage_page``
+    HID usage page as hexadecimal string.
+
+``usage_decoded``
+    Human-readable decoded usage description.
+
+``confidence``
+    Reverse-engineering confidence label for the candidate.
+
+``logical_minimum``
+    HID logical minimum for the field.
+
+``logical_maximum``
+    HID logical maximum for the field.
+
+``field_flags``
+    Raw HID field flags as integer.
+
+``field_flags_text``
+    Human-readable field flags summary.
+
+``readable``
+    Boolean indicating whether the current value could be read successfully.
+
+``looks_like``
+    Coarse shape classification derived from the field metadata and current
+    value shape. Current values include ``boolean``, ``enum``, ``scalar``,
+    ``blob-like``, and ``unreadable``.
+
+``current_value``
+    Current value, either a scalar integer or an array of integers depending on
+    the field shape.
+
+Example::
+
+    "telemetry_candidates": [
+      {
+        "report_type": "feature",
+        "report_id": 225,
+        "field_index": 0,
+        "usage_code": "0xff9200e1",
+        "usage_page": "0xff92",
+        "usage_decoded": "Vendor-private boolean (tentative)",
+        "confidence": "candidate",
+        "logical_minimum": 0,
+        "logical_maximum": 1,
+        "field_flags": 2,
+        "field_flags_text": "variable",
+        "readable": true,
+        "looks_like": "boolean",
+        "current_value": 0
+      },
+      {
+        "report_type": "feature",
+        "report_id": 236,
+        "field_index": 1,
+        "usage_code": "0xff9200ec",
+        "usage_page": "0xff92",
+        "usage_decoded": "Vendor-private data/status (tentative)",
+        "confidence": "tentative",
+        "logical_minimum": -2147483648,
+        "logical_maximum": 2147483647,
+        "field_flags": 2,
+        "field_flags_text": "variable",
+        "readable": true,
+        "looks_like": "blob-like",
+        "current_value": [16252, 64473]
+      }
+    ]
 
 
 ``controls``
@@ -578,7 +683,8 @@ or::
     ./acdprobe --collect /dev/acdctl4
 
 These commands avoid experimental writes and produce a stable summary plus the
-raw supporting files.
+raw supporting files. Review the generated files before sharing them if USB
+topology disclosure is sensitive in your environment.
 
 Experimental workflows such as::
 
@@ -597,8 +703,9 @@ When reviewing a contributed probe bundle:
 2. Check whether the VID:PID, USB revision fields, and HID name match an
    existing known device.
 3. Check the ``report_descriptor`` fingerprint for a quick revision signature.
-4. Review ``controls`` and confidence labels.
-5. Use ``report.json`` and ``report_descriptor.hex`` only when deeper inspection
+4. Review ``telemetry_candidates`` for unresolved vendor-private controls.
+5. Review ``controls`` and confidence labels.
+6. Use ``report.json`` and ``report_descriptor.hex`` only when deeper inspection
    is needed.
 
 
