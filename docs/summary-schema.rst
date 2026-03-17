@@ -293,6 +293,55 @@ Example::
       "preview_hex": "05 80 09 01 a1 01 75 10 95 01 15 00 26 ff 03 06"
     }
 
+``macos_parameter_hints``
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Type: array of objects
+
+Each entry summarizes how an Apple-style display parameter relates to the observed HID control set for the probed monitor.
+
+Current fields:
+
+``parameter``
+    Apple-style parameter name such as ``brightness`` or ``auto_brightness``.
+
+``status``
+    Either ``observed`` when a matching HID control was found, or ``not_observed`` when no direct match was seen in the current probe results.
+
+``usage_code``
+    Full HID usage code as hexadecimal string when the parameter is observed, otherwise ``null``.
+
+``usage_decoded``
+    Human-readable decoded usage name when the parameter is observed, otherwise ``null``.
+
+``note``
+    Short explanatory note describing the mapping or absence.
+
+Example::
+
+    "macos_parameter_hints": [
+      {
+        "parameter": "brightness",
+        "status": "observed",
+        "usage_code": "0x00820010",
+        "usage_decoded": "Brightness",
+        "note": "Mapped from the standard VESA virtual-control brightness usage."
+      },
+      {
+        "parameter": "auto_brightness",
+        "status": "observed",
+        "usage_code": "0x00820066",
+        "usage_decoded": "Ambient Light Sensor",
+        "note": "Mapped from the ambient-light-sensor / auto-brightness control."
+      },
+      {
+        "parameter": "contrast",
+        "status": "not_observed",
+        "usage_code": null,
+        "usage_decoded": null,
+        "note": "Not observed in the current HID control set."
+      }
+    ]
+
 
 ``controls``
 ~~~~~~~~~~~~

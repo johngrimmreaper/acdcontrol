@@ -510,4 +510,5 @@ Release 0.5 highlights
   to ``acdprobe``
 * Added readonly and experimental collection profiles to ``acdprobe``
 * Enriched ``summary.json`` with control metadata for cross-platform comparison
+* Added macOS parameter compatibility hints and vendor-private telemetry summaries to ``acdprobe``
 * Improved README coverage for ``acdcontrol`` and ``acdprobe``
