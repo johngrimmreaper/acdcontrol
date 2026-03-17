@@ -9,7 +9,7 @@ UDEVRULESDIR ?= /etc/udev/rules.d
 DESTDIR ?=
 
 CXX ?= g++
-CXXFLAGS ?=
+CXXFLAGS ?= -O2 -Wall -Wextra -Wpedantic
 
 .PHONY: all clean release upload install uninstall
 
@@ -28,10 +28,10 @@ release:
 	mkdir -p $(DIRNAME)
 	rm -rf $(DIRNAME)/*
 	cp $(RELEASE_FILES) $(DIRNAME)
-	tar cvfz $(VERNAME).tar.gz -C /tmp $(VERNAME) 
+	tar cvfz $(VERNAME).tar.gz -C /tmp $(VERNAME)
 
 upload: release
- 	curl -T $(VERNAME).tar.gz ftp://anonymous@upload.sourceforge.net/incoming/
+	curl -T $(VERNAME).tar.gz ftp://anonymous@upload.sourceforge.net/incoming/
 
 install:
 	install -d $(DESTDIR)$(UDEVRULESDIR)
@@ -42,4 +42,3 @@ install:
 uninstall:
 	rm -f $(DESTDIR)$(UDEVRULESDIR)/69-apple-cinema.rules
 	rm -f $(DESTDIR)$(BINDIR)/acdcontrol
-	
