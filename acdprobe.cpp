@@ -1414,15 +1414,19 @@ static std::string confidence_for_usage_code(unsigned int usage_code) {
     unsigned int page = (usage_code >> 16) & 0xffffU;
     unsigned int id = usage_code & 0xffffU;
 
-    if (page == kUsagePageVesaVirtualControls &&
-        (id == kUsageIdBrightness || id == kUsageIdAmbientLightSensor)) {
-        return "confirmed";
-    }
-    if (page == kUsagePageAppleVendorPrivate &&
-        (id == kUsageIdVendorPrivateBool || id == kUsageIdVendorPrivateStatus)) {
-        return "tentative";
+    if (page == kUsagePageVesaVirtualControls) {
+        if (id == kUsageIdBrightness || id == kUsageIdAmbientLightSensor) {
+            return "known";
+        }
+        return "observed";
     }
     if (page == kUsagePageAppleVendorPrivate) {
+        if (id == kUsageIdVendorPrivateBool) {
+            return "candidate";
+        }
+        if (id == kUsageIdVendorPrivateStatus) {
+            return "tentative";
+        }
         return "unknown";
     }
     return "observed";
