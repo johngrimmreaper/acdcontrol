@@ -214,6 +214,17 @@ struct TelemetryCandidate {
         : report_id(0), field_index(0), usage_code(0), usage_page(0),
           logical_minimum(0), logical_maximum(0), field_flags(0), readable(false) {}
 };
+ 
+struct MacOSParameterHint {
+    std::string parameter;
+    std::string status;
+    unsigned int usage_code;
+    std::string usage_decoded;
+    std::string note;
+
+    MacOSParameterHint()
+        : usage_code(0) {}
+};
 
 
 static std::vector<TelemetryCandidate> collect_vendor_private_telemetry_candidates(const ProbeData& data);
@@ -1589,6 +1600,89 @@ static ReportDescriptorFingerprint build_report_descriptor_fingerprint(const Pro
     return fingerprint;
 }
 
+static const SummaryControl* find_control_by_usage_code(const std::vector<SummaryControl>& controls,
+                                                    unsigned int usage_code) {
+    for (std::vector<SummaryControl>::const_iterator it = controls.begin();
+         it != controls.end(); ++it) {
+        if (it->usage_code == usage_code) {
+            return &(*it);
+        }
+    }
+    return NULL;
+}
+
+static void append_macos_parameter_hint(std::vector<MacOSParameterHint>& hints,
+                                        const std::string& parameter,
+                                        const SummaryControl* control,
+                                        const std::string& note_if_observed,
+                                        const std::string& note_if_missing) {
+    MacOSParameterHint hint;
+    hint.parameter = parameter;
+    if (control != NULL) {
+        hint.status = "observed";
+        hint.usage_code = control->usage_code;
+        hint.usage_decoded = control->usage_decoded;
+        hint.note = note_if_observed;
+    } else {
+        hint.status = "not_observed";
+        hint.note = note_if_missing;
+    }
+    hints.push_back(hint);
+}
+
+static std::vector<MacOSParameterHint> collect_macos_parameter_hints(const ProbeData& data) {
+    std::vector<MacOSParameterHint> hints;
+    std::vector<SummaryControl> controls = collect_summary_controls(data);
+
+    const SummaryControl* brightness =
+        find_control_by_usage_code(controls, ((kUsagePageVesaVirtualControls << 16) | kUsageIdBrightness));
+    const SummaryControl* ambient_light_sensor =
+        find_control_by_usage_code(controls, ((kUsagePageVesaVirtualControls << 16) | kUsageIdAmbientLightSensor));
+
+    append_macos_parameter_hint(hints,
+                                "brightness",
+                                brightness,
+                                "Mapped from the standard VESA virtual-control brightness usage.",
+                                "No direct HID brightness control was observed.");
+    append_macos_parameter_hint(hints,
+                                "auto_brightness",
+                                ambient_light_sensor,
+                                "Mapped from the ambient-light-sensor / auto-brightness control.",
+                                "No direct HID auto-brightness style control was observed.");
+    append_macos_parameter_hint(hints,
+                                "ambient_light_compensation",
+                                ambient_light_sensor,
+                                "Mapped from the ambient-light-sensor / auto-brightness control.",
+                                "No direct HID ambient-light-compensation style control was observed.");
+    append_macos_parameter_hint(hints,
+                                "contrast",
+                                NULL,
+                                "",
+                                "Not observed in the current HID control set.");
+    append_macos_parameter_hint(hints,
+                                "linear_brightness",
+                                NULL,
+                                "",
+                                "Not directly observed in the current HID control set.");
+    append_macos_parameter_hint(hints,
+                                "usable_linear_brightness",
+                                NULL,
+                                "",
+                                "Not directly observed in the current HID control set.");
+    append_macos_parameter_hint(hints,
+                                "brightness_probe",
+                                NULL,
+                                "",
+                                "Not directly observed in the current HID control set.");
+    append_macos_parameter_hint(hints,
+                                "brightness_fade",
+                                NULL,
+                                "",
+                                "Not directly observed in the current HID control set.");
+
+    return hints;
+}
+
 static std::vector<TelemetryCandidate> collect_vendor_private_telemetry_candidates(const ProbeData& data) {
     std::vector<TelemetryCandidate> candidates;
     std::vector<SummaryControl> controls = collect_summary_controls(data);
@@ -1694,6 +1788,31 @@ static std::string build_summary_json(const ProbeData& data) {
     append_json_string_or_null(out, descriptor_fingerprint.preview_hex);
     out << "\n";
     out << "  },\n";
+    std::vector<MacOSParameterHint> macos_parameter_hints = collect_macos_parameter_hints(data);
+    out << "  \"macos_parameter_hints\": [\n";
+    for (std::vector<MacOSParameterHint>::size_type i = 0; i < macos_parameter_hints.size(); ++i) {
+        const MacOSParameterHint& hint = macos_parameter_hints[i];
+        out << "    {\n";
+        out << "      \"parameter\": \"" << escape_json(hint.parameter) << "\",\n";
+        out << "      \"status\": \"" << escape_json(hint.status) << "\",\n";
+        out << "      \"usage_code\": ";
+        if (hint.usage_code == 0U) {
+            out << "null";
+        } else {
+            out << '"' << hex_u32(hint.usage_code) << '"';
+        }
+        out << ",\n";
+        out << "      \"usage_decoded\": ";
+        append_json_string_or_null(out, hint.usage_decoded);
+        out << ",\n";
+        out << "      \"note\": \"" << escape_json(hint.note) << "\"\n";
+        out << "    }";
+        if ((i + 1) != macos_parameter_hints.size()) {
+            out << ",";
+        }
+        out << "\n";
+    }
+    out << "  ],\n";
     std::vector<TelemetryCandidate> telemetry_candidates = collect_vendor_private_telemetry_candidates(data);
     out << "  \"telemetry_candidates\": [\n";
     for (std::vector<TelemetryCandidate>::size_type i = 0; i < telemetry_candidates.size(); ++i) {
