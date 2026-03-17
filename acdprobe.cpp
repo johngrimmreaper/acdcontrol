@@ -169,6 +169,8 @@ struct SummaryControl {
     std::string usage_decoded;
     std::string name;
     std::string confidence;
+    unsigned int logical;
+    unsigned int physical;
     int logical_minimum;
     int logical_maximum;
     int physical_minimum;
@@ -184,8 +186,8 @@ struct SummaryControl {
 
     SummaryControl()
         : report_type(0), report_id(0), field_index(0), usage_code(0), usage_page(0),
-          application_usage(0), logical_minimum(0), logical_maximum(0),
-          physical_minimum(0), physical_maximum(0), field_flags(0),
+          application_usage(0), logical(0), physical(0), logical_minimum(0),
+          logical_maximum(0), physical_minimum(0), physical_maximum(0), field_flags(0),
           unit_exponent(0), unit(0), usage_count(0), is_single_value(true),
           value_count(0) {}
 };
@@ -1460,6 +1462,8 @@ static std::vector<SummaryControl> collect_summary_controls(const ProbeData& dat
                     control.usage_decoded = decode_usage_code(u->usage_code);
                     control.name = control.usage_decoded;
                     control.confidence = confidence_for_usage_code(u->usage_code);
+                    control.logical = static_cast<unsigned int>(f->info.logical);
+                    control.physical = static_cast<unsigned int>(f->info.physical);
                     control.logical_minimum = f->info.logical_minimum;
                     control.logical_maximum = f->info.logical_maximum;
                     control.physical_minimum = f->info.physical_minimum;
@@ -1611,6 +1615,8 @@ static std::string build_summary_json(const ProbeData& data) {
         out << "      \"usage_decoded\": \"" << escape_json(control.usage_decoded) << "\",\n";
         out << "      \"name\": \"" << escape_json(control.name) << "\",\n";
         out << "      \"confidence\": \"" << escape_json(control.confidence) << "\",\n";
+        out << "      \"logical\": \"" << hex_u32(control.logical) << "\",\n";
+        out << "      \"physical\": \"" << hex_u32(control.physical) << "\",\n";
         out << "      \"logical_minimum\": " << control.logical_minimum << ",\n";
         out << "      \"logical_maximum\": " << control.logical_maximum << ",\n";
         out << "      \"physical_minimum\": " << control.physical_minimum << ",\n";
