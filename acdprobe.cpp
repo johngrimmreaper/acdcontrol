@@ -163,6 +163,8 @@ struct SummaryControl {
     unsigned int field_index;
     unsigned int usage_code;
     std::string report_type_text;
+    unsigned int application_usage;
+    std::string application_decoded;
     std::string name;
     std::string confidence;
     int logical_minimum;
@@ -180,9 +182,10 @@ struct SummaryControl {
 
     SummaryControl()
         : report_type(0), report_id(0), field_index(0), usage_code(0),
-          logical_minimum(0), logical_maximum(0), physical_minimum(0),
-          physical_maximum(0), field_flags(0), unit_exponent(0), unit(0),
-          usage_count(0), is_single_value(true), value_count(0) {}
+          application_usage(0), logical_minimum(0), logical_maximum(0),
+          physical_minimum(0), physical_maximum(0), field_flags(0),
+          unit_exponent(0), unit(0), usage_count(0), is_single_value(true),
+          value_count(0) {}
 };
 
 struct ReportDescriptorFingerprint {
@@ -1449,6 +1452,8 @@ static std::vector<SummaryControl> collect_summary_controls(const ProbeData& dat
                     control.field_index = f->info.field_index;
                     control.usage_code = u->usage_code;
                     control.report_type_text = report_type_name(r->info.report_type);
+                    control.application_usage = f->info.application;
+                    control.application_decoded = decode_usage_code(f->info.application);
                     control.name = decode_usage_code(u->usage_code);
                     control.confidence = confidence_for_usage_code(u->usage_code);
                     control.logical_minimum = f->info.logical_minimum;
@@ -1595,6 +1600,8 @@ static std::string build_summary_json(const ProbeData& data) {
         out << "      \"report_type\": \"" << escape_json(control.report_type_text) << "\",\n";
         out << "      \"report_id\": " << control.report_id << ",\n";
         out << "      \"field_index\": " << control.field_index << ",\n";
+        out << "      \"application_usage\": \"" << hex_u32(control.application_usage) << "\",\n";
+        out << "      \"application_decoded\": \"" << escape_json(control.application_decoded) << "\",\n";
         out << "      \"usage_code\": \"" << hex_u32(control.usage_code) << "\",\n";
         out << "      \"name\": \"" << escape_json(control.name) << "\",\n";
         out << "      \"confidence\": \"" << escape_json(control.confidence) << "\",\n";
