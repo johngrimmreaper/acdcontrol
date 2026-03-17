@@ -199,6 +199,29 @@ struct ReportDescriptorFingerprint {
     std::string::size_type byte_count;
 };
 
+struct TelemetryCandidate {
+    std::string report_type_text;
+    unsigned int report_id;
+    unsigned int field_index;
+    unsigned int usage_code;
+    unsigned int usage_page;
+    std::string usage_decoded;
+    std::string confidence;
+    int logical_minimum;
+    int logical_maximum;
+    unsigned int field_flags;
+    std::string field_flags_text;
+    bool readable;
+    std::string value_shape;
+    std::vector<int> current_values;
+
+    TelemetryCandidate()
+        : report_id(0), field_index(0), usage_code(0), usage_page(0),
+          logical_minimum(0), logical_maximum(0), field_flags(0), readable(false) {}
+};
+
+
+static std::vector<TelemetryCandidate> collect_vendor_private_telemetry_candidates(const ProbeData& data);
 
 static std::string now_utc_iso8601() {
     std::time_t now = std::time(NULL);
@@ -1322,6 +1345,44 @@ static std::string build_text_report(const ProbeData& data, const FeatureSetResu
         }
     }
 
+    std::vector<TelemetryCandidate> telemetry_candidates = collect_vendor_private_telemetry_candidates(data);
+    out << "telemetry_candidates:\n";
+    if (telemetry_candidates.empty()) {
+        out << "  <none>\n";
+    } else {
+        for (std::vector<TelemetryCandidate>::size_type i = 0; i < telemetry_candidates.size(); ++i) {
+            const TelemetryCandidate& candidate = telemetry_candidates[i];
+            out << "  [" << i << "] "
+                << "report_type=" << candidate.report_type_text
+                << " report_id=" << candidate.report_id
+                << " field_index=" << candidate.field_index
+                << " usage_code=" << hex_u32(candidate.usage_code)
+                << " page=" << hex_u16(candidate.usage_page)
+                << " decoded=\"" << candidate.usage_decoded << "\""
+                << " confidence=" << candidate.confidence
+                << " logical_range=" << candidate.logical_minimum << ".." << candidate.logical_maximum
+                << " flags=" << candidate.field_flags_text
+                << " readable=" << (candidate.readable ? "true" : "false")
+                << " looks_like=" << candidate.value_shape
+                << " current_value=";
+            if (candidate.current_values.empty()) {
+                out << "<unavailable>";
+            } else if (candidate.current_values.size() == 1) {
+                out << candidate.current_values[0];
+            } else {
+                out << "[";
+                for (std::vector<int>::size_type j = 0; j < candidate.current_values.size(); ++j) {
+                    out << candidate.current_values[j];
+                    if ((j + 1) != candidate.current_values.size()) {
+                        out << ", ";
+                    }
+                }
+                out << "]";
+            }
+            out << "\n";
+        }
+    }
+
     append_reports_text(out, "input", data.input_reports);
     append_reports_text(out, "output", data.output_reports);
     append_reports_text(out, "feature", data.feature_reports);
@@ -1432,6 +1493,33 @@ static std::string confidence_for_usage_code(unsigned int usage_code) {
     return "observed";
 }
 
+static bool is_unresolved_vendor_private_control(const SummaryControl& control) {
+    return control.usage_page == kUsagePageAppleVendorPrivate &&
+           control.confidence != "known";
+}
+
+static bool control_value_is_readable(const SummaryControl& control) {
+    return control.value_count > 0U &&
+           control.current_values.size() == static_cast<std::vector<int>::size_type>(control.value_count);
+}
+
+static std::string telemetry_value_shape_for_control(const SummaryControl& control) {
+    if (!control_value_is_readable(control)) {
+        return "unreadable";
+    }
+    if (control.value_count > 1U) {
+        return "blob-like";
+    }
+    if (control.logical_minimum == 0 && control.logical_maximum == 1) {
+        return "boolean";
+    }
+    if ((control.logical_maximum - control.logical_minimum) >= 1 &&
+        (control.logical_maximum - control.logical_minimum) <= 16) {
+        return "enum";
+    }
+    return "scalar";
+}
+
 static std::vector<SummaryControl> collect_summary_controls(const ProbeData& data) {
     std::vector<SummaryControl> controls;
 
@@ -1514,6 +1602,37 @@ static ReportDescriptorFingerprint build_report_descriptor_fingerprint(const Pro
     }
 
     return fingerprint;
+}
+
+static std::vector<TelemetryCandidate> collect_vendor_private_telemetry_candidates(const ProbeData& data) {
+    std::vector<TelemetryCandidate> candidates;
+    std::vector<SummaryControl> controls = collect_summary_controls(data);
+
+    for (std::vector<SummaryControl>::const_iterator it = controls.begin();
+         it != controls.end(); ++it) {
+        if (!is_unresolved_vendor_private_control(*it)) {
+            continue;
+        }
+
+        TelemetryCandidate candidate;
+        candidate.report_type_text = it->report_type_text;
+        candidate.report_id = it->report_id;
+        candidate.field_index = it->field_index;
+        candidate.usage_code = it->usage_code;
+        candidate.usage_page = it->usage_page;
+        candidate.usage_decoded = it->usage_decoded;
+        candidate.confidence = it->confidence;
+        candidate.logical_minimum = it->logical_minimum;
+        candidate.logical_maximum = it->logical_maximum;
+        candidate.field_flags = it->field_flags;
+        candidate.field_flags_text = it->field_flags_text;
+        candidate.readable = control_value_is_readable(*it);
+        candidate.value_shape = telemetry_value_shape_for_control(*it);
+        candidate.current_values = it->current_values;
+        candidates.push_back(candidate);
+    }
+
+    return candidates;
 }
 
 static void append_json_string_or_null(std::ostream& out, const std::string& value) {
@@ -1605,6 +1724,46 @@ static std::string build_summary_json(const ProbeData& data) {
     append_json_string_or_null(out, descriptor_fingerprint.preview_hex);
     out << "\n";
     out << "  },\n";
+    std::vector<TelemetryCandidate> telemetry_candidates = collect_vendor_private_telemetry_candidates(data);
+    out << "  \"telemetry_candidates\": [\n";
+    for (std::vector<TelemetryCandidate>::size_type i = 0; i < telemetry_candidates.size(); ++i) {
+        const TelemetryCandidate& candidate = telemetry_candidates[i];
+        out << "    {\n";
+        out << "      \"report_type\": \"" << escape_json(candidate.report_type_text) << "\",\n";
+        out << "      \"report_id\": " << candidate.report_id << ",\n";
+        out << "      \"field_index\": " << candidate.field_index << ",\n";
+        out << "      \"usage_code\": \"" << hex_u32(candidate.usage_code) << "\",\n";
+        out << "      \"usage_page\": \"" << hex_u16(candidate.usage_page) << "\",\n";
+        out << "      \"usage_decoded\": \"" << escape_json(candidate.usage_decoded) << "\",\n";
+        out << "      \"confidence\": \"" << escape_json(candidate.confidence) << "\",\n";
+        out << "      \"logical_minimum\": " << candidate.logical_minimum << ",\n";
+        out << "      \"logical_maximum\": " << candidate.logical_maximum << ",\n";
+        out << "      \"field_flags\": " << candidate.field_flags << ",\n";
+        out << "      \"field_flags_text\": \"" << escape_json(candidate.field_flags_text) << "\",\n";
+        out << "      \"readable\": " << (candidate.readable ? "true" : "false") << ",\n";
+        out << "      \"looks_like\": \"" << escape_json(candidate.value_shape) << "\",\n";
+        out << "      \"current_value\": ";
+        if (candidate.current_values.empty()) {
+            out << "null\n";
+        } else if (candidate.current_values.size() == 1) {
+            out << candidate.current_values[0] << "\n";
+        } else {
+            out << "[";
+            for (std::vector<int>::size_type j = 0; j < candidate.current_values.size(); ++j) {
+                out << candidate.current_values[j];
+                if ((j + 1) != candidate.current_values.size()) {
+                    out << ", ";
+                }
+            }
+            out << "]\n";
+        }
+        out << "    }";
+        if ((i + 1) != telemetry_candidates.size()) {
+            out << ",";
+        }
+        out << "\n";
+    }
+    out << "  ],\n";
     out << "  \"controls\": [\n";
     for (std::vector<SummaryControl>::size_type i = 0; i < controls.size(); ++i) {
         const SummaryControl& control = controls[i];
