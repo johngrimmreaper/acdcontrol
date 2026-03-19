@@ -42,14 +42,14 @@ Notable user-facing news in the current unreleased line:
 
 0.4.1
 =====
+All the development done between  2007.05.04 and 2026.03.15
 
-Small code fixes before starting 0.5 developlment
-Fix world-writable permissions.
-Makefile improvements and corrections.
 
-This tag marks the last pre-``0.5`` stabilization point in the current
-maintainer era, before the larger refactor work and before ``acdprobe`` became
-part of the project.
+* Contributions from many different github users from 2012 - 2024
+* Fix world-writable permissions of /dev/acdctl* device
+* Small code fixes on acdcontrol
+* Makefile corrections and improvements
+
 
 
 0.4
