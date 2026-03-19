@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "acd/apple_led_cinema_27.h"
+
 #define ACDPROBE_VERSION "0.5"
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -630,6 +632,171 @@ static std::string decode_usage_code(unsigned int usage_code) {
     }
 
     return "Unknown";
+}
+
+static std::string meaning_confidence_name(acd::hid::monitor::MeaningConfidence confidence) {
+    switch (confidence) {
+        case acd::hid::monitor::MEANING_CONFIRMED: return "confirmed";
+        case acd::hid::monitor::MEANING_INFERRED: return "inferred";
+        case acd::hid::monitor::MEANING_UNKNOWN:
+        default:
+            return "unknown";
+    }
+}
+
+static const acd::hid::monitor::KnownReportInfo* find_known_report_by_name(
+    const ProbeData& data,
+    const std::string& name
+) {
+    if (!acd::apple::led_cinema_27::matches_device(
+            static_cast<std::uint16_t>(data.devinfo.vendor),
+            static_cast<std::uint16_t>(data.devinfo.product))) {
+        return 0;
+    }
+
+    for (std::size_t i = 0; i < acd::apple::led_cinema_27::KNOWN_REPORT_COUNT; ++i) {
+        const acd::hid::monitor::KnownReportInfo& info =
+            acd::apple::led_cinema_27::KNOWN_REPORTS[i];
+        if (name == info.short_name) {
+            return &info;
+        }
+    }
+
+    return 0;
+}
+
+static const ReportInfoWrap* find_feature_report_by_id(const ProbeData& data, unsigned int report_id) {
+    for (std::vector<ReportInfoWrap>::const_iterator it = data.feature_reports.begin();
+         it != data.feature_reports.end(); ++it) {
+        if (it->info.report_id == report_id) {
+            return &(*it);
+        }
+    }
+    return 0;
+}
+
+static std::string build_known_report_text(const ProbeData& data,
+                                           const std::string& known_name,
+                                           std::string& error) {
+    const acd::hid::monitor::KnownReportInfo* info =
+        find_known_report_by_name(data, known_name);
+    if (!info) {
+        std::ostringstream out;
+        if (!acd::apple::led_cinema_27::matches_device(
+                static_cast<std::uint16_t>(data.devinfo.vendor),
+                static_cast<std::uint16_t>(data.devinfo.product))) {
+            out << "--get-known is currently supported only for Apple LED Cinema Display 27-inch (05ac:9226); probed device is "
+                << hex_u16(static_cast<unsigned int>(data.devinfo.vendor))
+                << ":"
+                << hex_u16(static_cast<unsigned int>(data.devinfo.product));
+        } else {
+            out << "unknown known-report name: " << known_name
+                << ". Available names:";
+            for (std::size_t i = 0; i < acd::apple::led_cinema_27::KNOWN_REPORT_COUNT; ++i) {
+                out << (i == 0 ? " " : ", ")
+                    << acd::apple::led_cinema_27::KNOWN_REPORTS[i].short_name;
+            }
+        }
+        error = out.str();
+        return std::string();
+    }
+
+    const ReportInfoWrap* report = find_feature_report_by_id(data, info->report_id);
+    if (!report) {
+        std::ostringstream out;
+        out << "known report " << info->short_name
+            << " (report_id=" << static_cast<unsigned int>(info->report_id)
+            << ") was not found in the feature report set";
+        error = out.str();
+        return std::string();
+    }
+
+    std::vector<int> current_values;
+    unsigned int usage_code = 0U;
+    unsigned int field_index = 0U;
+    int logical_minimum = 0;
+    int logical_maximum = 0;
+    unsigned int field_flags = 0U;
+    unsigned int maxusage = 0U;
+
+    bool have_field_metadata = false;
+    for (std::vector<FieldInfoWrap>::const_iterator fit = report->fields.begin();
+         fit != report->fields.end(); ++fit) {
+        if (!have_field_metadata) {
+            field_index = fit->info.field_index;
+            logical_minimum = fit->info.logical_minimum;
+            logical_maximum = fit->info.logical_maximum;
+            field_flags = fit->info.flags;
+            maxusage = fit->info.maxusage;
+            have_field_metadata = true;
+        }
+        for (std::vector<UsageInfo>::const_iterator uit = fit->usages.begin();
+             uit != fit->usages.end(); ++uit) {
+            if (usage_code == 0U && uit->get_code_ok) {
+                usage_code = uit->usage_code;
+            }
+            if (uit->have_value) {
+                current_values.push_back(uit->value);
+            }
+        }
+    }
+
+    std::ostringstream out;
+    out << "acdprobe known report\n";
+    out << "device_node: " << data.device_node << "\n";
+    out << "hid_name: " << (data.hid_name.empty() ? std::string("<unavailable>") : data.hid_name) << "\n";
+    out << "known_name: " << info->short_name << "\n";
+    out << "report_type: feature\n";
+    out << "report_id: " << static_cast<unsigned int>(info->report_id)
+        << " (" << hex_u16(static_cast<unsigned int>(info->report_id)) << ")\n";
+    out << "payload_size_bytes: " << info->payload_size_bytes << "\n";
+    out << "usage_page: " << hex_u16(info->usage_page)
+        << " (" << usage_page_name(info->usage_page) << ")\n";
+    out << "usage: " << hex_u16(info->usage) << "\n";
+    out << "usage_code: " << (usage_code == 0U ? std::string("<unavailable>") : hex_u32(usage_code)) << "\n";
+    out << "decoded: "
+        << (usage_code == 0U ? decode_usage_code((info->usage_page << 16) | info->usage)
+                             : decode_usage_code(usage_code))
+        << "\n";
+    out << "meaning: " << info->meaning << "\n";
+    out << "confidence: " << meaning_confidence_name(info->confidence) << "\n";
+    out << "field_index: " << field_index << "\n";
+    out << "maxusage: " << maxusage << "\n";
+    out << "logical_range: " << logical_minimum << ".." << logical_maximum << "\n";
+    out << "field_flags: " << field_flags << " (" << field_flags_to_string(field_flags) << ")\n";
+    out << "current_value: ";
+    if (current_values.empty()) {
+        out << "<unavailable>\n";
+    } else if (current_values.size() == 1U) {
+        out << current_values[0] << "\n";
+    } else {
+        out << "[";
+        for (std::size_t i = 0; i < current_values.size(); ++i) {
+            out << current_values[i];
+            if ((i + 1U) != current_values.size()) {
+                out << ", ";
+            }
+        }
+        out << "]\n";
+    }
+
+    if (info->report_id == acd::apple::led_cinema_27::REPORT_ID_BRIGHTNESS && current_values.size() == 1U) {
+        out << "decoded_value: brightness=" << current_values[0]
+            << " percent="
+            << std::fixed << std::setprecision(1)
+            << acd::apple::led_cinema_27::brightness_value_to_percent(
+                   static_cast<std::uint16_t>(current_values[0]))
+            << "\n";
+    } else if (info->report_id == acd::apple::led_cinema_27::REPORT_ID_MODE_2STATE && current_values.size() == 1U) {
+        out << "decoded_value: mode_2state=" << current_values[0] << "\n";
+    } else if (info->report_id == acd::apple::led_cinema_27::REPORT_ID_VENDOR_FLAG && current_values.size() == 1U) {
+        out << "decoded_value: vendor_flag=" << current_values[0] << "\n";
+    } else if (info->report_id == acd::apple::led_cinema_27::REPORT_ID_VENDOR_STATE && current_values.size() == 2U) {
+        out << "decoded_value: value0=" << current_values[0]
+            << " value1=" << current_values[1] << "\n";
+    }
+
+    return out.str();
 }
 
 static void enumerate_strings(int fd, ProbeData& data) {
@@ -2211,6 +2378,7 @@ int main(int argc, char** argv) {
     bool collect_mode = false;
     bool quiet = false;
     std::string profile_name;
+    std::string get_known_name;
     FeatureSetRequest set_request;
 
     for (int i = 1; i < argc; ++i) {
@@ -2233,6 +2401,8 @@ int main(int argc, char** argv) {
             csv_path = argv[++i];
         } else if (arg == "--descriptor" && i + 1 < argc) {
             descriptor_path = argv[++i];
+        } else if (arg == "--get-known" && i + 1 < argc) {
+            get_known_name = argv[++i];
         } else if (arg == "--set-feature" && i + 4 < argc) {
             set_request.enabled = true;
             if (!parse_uint_arg(argv[++i], set_request.report_id) ||
@@ -2307,6 +2477,15 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    std::string known_report_text;
+    if (!get_known_name.empty()) {
+        known_report_text = build_known_report_text(data, get_known_name, error);
+        if (known_report_text.empty()) {
+            std::cerr << "acdprobe: " << error << "\n";
+            return 1;
+        }
+    }
+
     if (!no_save) {
         std::string default_dir = join_path(save_dir, data.vid_pid_key);
         std::string output_dir = collect_mode ? collect_dirname(save_dir, data) : default_dir;
@@ -2357,8 +2536,12 @@ int main(int argc, char** argv) {
     }
 
     if (!quiet) {
-        std::cout << text_report;
-        std::cout << usage_summary(data) << "\n";
+        if (!known_report_text.empty()) {
+            std::cout << known_report_text;
+        } else {
+            std::cout << text_report;
+            std::cout << usage_summary(data) << "\n";
+        }
     }
 
     if (!json_path.empty() && !write_text_file(json_path, json_report)) {

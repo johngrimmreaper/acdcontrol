@@ -27,7 +27,7 @@ MAN1DIR ?= $(MANDIR)/man1
 DESTDIR ?=
 
 CXX ?= g++
-CXXFLAGS ?=
+CXXFLAGS += -Iinclude
 MAN ?= man
 
 MANPAGES = man/acdcontrol.1 man/acdprobe.1
