@@ -36,7 +36,28 @@ Support in this repository should be understood in three layers:
 A display not appearing in the official support list does not automatically mean
 it cannot work. It may simply mean it has not been tested and documented yet.
 
-Compiling
+Build dependencies
+------------------
+
+acdcontrol currently has very small build requirements: a C++ compiler and
+``make``.
+
+Debian / Ubuntu
+~~~~~~~~~~~~~~~
+
+Install the standard build toolchain::
+
+    sudo apt update
+    sudo apt install build-essential
+
+Fedora / AlmaLinux / RHEL-compatible systems
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Install the compiler and build tool::
+
+    sudo dnf install gcc-c++ make
+
+Building
 ---------
 
 Clone this repository::
