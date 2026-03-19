@@ -1,0 +1,566 @@
+.TH ACDPROBE 1 "2026-03-19" "acdcontrol" "User Commands"
+.
+.SH NAME
+acdprobe \- inspect Apple monitor HID interfaces and collect probe bundles
+.
+.SH SYNOPSIS
+.B acdprobe
+.RB [ \-\-save-dir " " DIR ]
+.RB [ \-\-collect ]
+.RB [ \-\-profile " " NAME ]
+.RB [ \-\-json " " PATH ]
+.RB [ \-\-text " " PATH ]
+.RB [ \-\-csv " " PATH ]
+.RB [ \-\-descriptor " " PATH ]
+.RB [ \-\-set-feature " " R " " F " " U " " V ]
+.RB [ \-\-readback-delay-ms " " N ]
+.RB [ \-\-no-save ]
+.RB [ \-\-quiet " | " \-q ]
+.I hid-device
+.br
+.B acdprobe
+.RB [ \-\-help " | " \-h ]
+.
+.SH DESCRIPTION
+.B acdprobe
+is the companion inspection tool for
+.BR acdcontrol (1).
+It probes a single Linux
+.B hiddev
+device node, reads HID identity and report metadata, decodes applications,
+fields, and usages, and emits one or more report files for review,
+reverse-engineering, and contribution.
+
+In normal probe mode,
+.B acdprobe
+reads the device state and generates a human-readable text report, a full JSON
+report, a flat CSV usage listing, and, when available through sysfs, a raw
+hex dump of the HID report descriptor.
+
+In collect mode, the tool writes a standardized bundle layout intended for
+community submission and later analysis. Collect mode also adds a compact
+.B summary.json
+file.
+
+The tool can also perform one experimental feature write with
+.BR \-\-set-feature ,
+validate the requested value against the HID logical range, write it, read it
+back immediately, and optionally read it back again after a delay.
+
+This manual documents the current behavior of the experimental utility as it
+exists today.
+.
+.SH OPERANDS
+.TP
+.I hid-device
+A single HID device node to inspect.
+
+Examples:
+.BR /dev/hiddev4 ,
+.BR /dev/acdctl4 .
+.
+.SH OPTIONS
+.TP
+.BI "\-\-save-dir " DIR
+Base output directory for generated files.
+
+The default is:
+.BR probes/raw .
+
+In ordinary probe mode, default files are written under a
+.B VID_PID
+subdirectory inside this base directory.
+
+In collect mode, the default base
+.B probes/raw
+is treated specially and produces a bundle under
+.B probes/VID_PID/
+instead of
+.BR probes/raw/VID_PID/ .
+If a non-default save directory is given, collect mode uses
+.B DIR/VID_PID/
+instead.
+.
+.TP
+.B \-\-collect
+Enable standardized bundle output.
+
+This changes the default filenames from interface-specific names such as
+.B VID_PID-ifN.json
+to fixed bundle names such as
+.BR report.json ,
+.BR report.txt ,
+.BR report.csv ,
+.BR report_descriptor.hex ,
+and
+.BR summary.json .
+.
+.TP
+.BI "\-\-profile " NAME
+Use a named probe workflow profile.
+
+The currently recognized profiles are:
+.RS
+.IP \(bu 3
+.B basic-readonly
+.IP \(bu 3
+.B full-readonly
+.IP \(bu 3
+.B als-discovery
+.RE
+
+Selecting any profile currently implies
+.BR \-\-collect .
+
+The two readonly profiles reject
+.BR \-\-set-feature .
+The
+.B als-discovery
+profile allows experimental feature writes.
+.
+.TP
+.BI "\-\-json " PATH
+Write the full JSON report to
+.IR PATH .
+.
+.TP
+.BI "\-\-text " PATH
+Write the human-readable text report to
+.IR PATH .
+.
+.TP
+.BI "\-\-csv " PATH
+Write the flat CSV usage listing to
+.IR PATH .
+.
+.TP
+.BI "\-\-descriptor " PATH
+Write the raw HID report descriptor as hexadecimal text to
+.IR PATH .
+
+If the report descriptor cannot be located through sysfs, the tool prints a
+warning and skips this file.
+.
+.TP
+.BI "\-\-set-feature " "R F U V"
+Experimentally write one HID feature usage and read it back.
+
+Arguments are:
+.RS
+.IP \(bu 3
+.B R
+\- feature report ID
+.IP \(bu 3
+.B F
+\- field index
+.IP \(bu 3
+.B U
+\- usage index
+.IP \(bu 3
+.B V
+\- signed integer value to request
+.RE
+
+The tool opens the device read-write, looks up the target feature metadata,
+verifies that the requested value is within the HID logical range, writes the
+usage, pushes the feature report back to the device, then performs immediate
+readback. The probe report includes the before, requested, and after values.
+.
+.TP
+.BI "\-\-readback-delay-ms " N
+After a successful
+.B \-\-set-feature
+write and immediate readback, sleep
+.I N
+milliseconds and perform one more delayed readback.
+
+This option is ignored unless
+.B \-\-set-feature
+is also present.
+.
+.TP
+.B \-\-no-save
+Do not auto-generate the default output paths.
+
+This is useful for print-only runs.
+
+Current behavior is intentionally narrow:
+.B \-\-no-save
+suppresses the default file layout, but explicitly requested output paths from
+.BR \-\-json ,
+.BR \-\-text ,
+.BR \-\-csv ,
+or
+.B \-\-descriptor
+are still honored.
+.
+.TP
+.BR \-q ", " \-\-quiet
+Do not print the text report and summary line to standard output.
+
+When files are written, the tool still prints the final
+.B Saved ...
+status lines for those files.
+.
+.TP
+.BR \-h ", " \-\-help
+Print usage help and exit.
+.
+.SH MODES
+.SS Ordinary probe mode
+With only a device operand,
+.B acdprobe
+probes the target and writes the default raw report set:
+.RS
+.IP \(bu 3
+full JSON report
+.IP \(bu 3
+human-readable text report
+.IP \(bu 3
+flat CSV usage dump
+.IP \(bu 3
+report descriptor hex dump, if available
+.RE
+
+The default layout is:
+.PP
+.RS
+.nf
+probes/raw/VID_PID/VID_PID-ifN.json
+probes/raw/VID_PID/VID_PID-ifN.txt
+probes/raw/VID_PID/VID_PID-ifN.csv
+probes/raw/VID_PID/VID_PID-ifN.rdesc.hex
+.fi
+.RE
+.
+.SS Collect mode
+With
+.BR \-\-collect ,
+or implicitly through
+.BR \-\-profile ,
+the tool writes a standardized bundle layout:
+.PP
+.RS
+.nf
+probes/VID_PID/report.json
+probes/VID_PID/report.txt
+probes/VID_PID/report.csv
+probes/VID_PID/report_descriptor.hex
+probes/VID_PID/summary.json
+.fi
+.RE
+
+When
+.B \-\-save-dir
+is set to a value other than the default
+.BR probes/raw ,
+the collect bundle is written under
+.BR DIR/VID_PID/ .
+.
+.SS Feature-write mode
+With
+.BR \-\-set-feature ,
+the tool performs one feature write before the ordinary probe pass.
+
+The resulting text and JSON reports include a
+.B feature_write
+section describing the attempted write, the usage code, the logical range, and
+the before/after values.
+.
+.SH PROFILES
+The current profile names are mainly workflow and safety selectors.
+
+.TP
+.B basic-readonly
+Named readonly collection workflow.
+Currently implies collect mode and rejects
+.BR \-\-set-feature .
+.
+.TP
+.B full-readonly
+Named readonly collection workflow.
+Currently implies collect mode and rejects
+.BR \-\-set-feature .
+.
+.TP
+.B als-discovery
+Named experimental collection workflow for ambient-light-sensor and
+auto-brightness style exploration.
+Currently implies collect mode and permits
+.BR \-\-set-feature .
+.
+.PP
+At present, profiles mostly affect collect-mode selection and write policy.
+They do not yet define deeply different probe scopes.
+.
+.SH REPORT CONTENT
+.SS Text report
+The text report includes:
+.RS
+.IP \(bu 3
+probe timestamp
+.IP \(bu 3
+device node
+.IP \(bu 3
+HID and USB identity fields
+.IP \(bu 3
+string descriptors
+.IP \(bu 3
+application usages
+.IP \(bu 3
+decoded hints
+.IP \(bu 3
+macOS parameter hints
+.IP \(bu 3
+vendor-private telemetry candidates
+.IP \(bu 3
+input, output, and feature report dumps
+.IP \(bu 3
+optional feature-write result block
+.RE
+.
+.SS JSON report
+The JSON report is the full structured probe artifact.
+
+It includes target identity, strings, applications, report trees, decoded
+candidate hints, optional feature-write information, and additional metadata
+useful for later review.
+.
+.SS CSV report
+The CSV report is a flattened usage-oriented listing of the probed HID report
+data. It is intended for quick scanning, filtering, and ad hoc comparison.
+.
+.SS Summary report
+The
+.B summary.json
+file is written only in collect mode.
+
+It is a compact derived artifact intended for submission, indexing, and quick
+comparison. The repository documents its schema separately in
+.BR docs/summary-schema.rst .
+.
+.SH FEATURE WRITE SEMANTICS
+When
+.B \-\-set-feature
+is used,
+.B acdprobe
+performs the following high-level sequence:
+.RS
+.IP 1. 3
+Open the target device read-write.
+.IP 2.
+Read feature metadata for the specified report, field, and usage.
+.IP 3.
+Validate the requested value against the HID logical range.
+.IP 4.
+Write the usage value.
+.IP 5.
+Push the feature report back to the device.
+.IP 6.
+Read the same usage back immediately.
+.IP 7.
+Optionally sleep and read it back again after
+.BR \-\-readback-delay-ms .
+.IP 8.
+Run the normal probe and include the write result in the reports.
+.RE
+
+Readonly profiles reject this mode with an error.
+
+A failed write aborts the run before the later probe output is produced.
+.
+.SH OUTPUT
+Unless
+.B \-\-quiet
+is used, the tool prints the text report followed by a short summary line such
+as:
+.PP
+.RS
+.nf
+Summary: 3 input reports, 0 output reports, 7 feature reports
+.fi
+.RE
+
+When files are written, the tool also prints save-status lines such as:
+.PP
+.RS
+.nf
+Saved JSON: probes/05ac_9226/report.json
+Saved text: probes/05ac_9226/report.txt
+Saved CSV: probes/05ac_9226/report.csv
+Saved summary: probes/05ac_9226/summary.json
+Saved descriptor hex: probes/05ac_9226/report_descriptor.hex
+.fi
+.RE
+.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful completion.
+.
+.TP
+.B 1
+Probe failure, feature-write failure, output-directory creation failure,
+or report-file write failure.
+.
+.TP
+.B 2
+Invalid command-line usage, including:
+.RS
+.IP \(bu 3
+unknown option
+.IP \(bu 3
+missing device operand
+.IP \(bu 3
+invalid arguments for
+.BR \-\-set-feature
+.IP \(bu 3
+invalid value for
+.BR \-\-readback-delay-ms
+.IP \(bu 3
+unknown profile name
+.IP \(bu 3
+attempting
+.B \-\-set-feature
+with a readonly profile
+.RE
+.
+.SH SAFETY NOTES
+Start with a readonly run on any unfamiliar device.
+
+For contribution and review workflows, prefer:
+.PP
+.RS
+.B acdprobe --collect /dev/acdctlN
+.RE
+
+Use
+.B \-\-set-feature
+only when you deliberately want to test a specific feature usage and are ready
+to examine the resulting before/after values.
+
+Remember that a successful write on one monitor model or controller generation
+does not prove the same behavior on another.
+.
+.SH PRIVACY NOTES
+Collect mode is intended to produce a standardized, privacy-safer bundle for
+sharing, but you should still review generated artifacts before submitting
+them.
+
+In particular, inspect:
+.RS
+.IP \(bu 3
+USB identity strings
+.IP \(bu 3
+descriptor dumps
+.IP \(bu 3
+text and JSON reports
+.RE
+.
+.SH EXAMPLES
+Probe a candidate device and save the default raw layout:
+.PP
+.RS
+.nf
+acdprobe /dev/acdctl4
+.fi
+.RE
+
+Probe without auto-generating default files:
+.PP
+.RS
+.nf
+acdprobe /dev/acdctl4 --no-save
+.fi
+.RE
+
+Create a standardized collect bundle:
+.PP
+.RS
+.nf
+acdprobe --collect /dev/acdctl4
+.fi
+.RE
+
+Use a readonly named profile:
+.PP
+.RS
+.nf
+acdprobe --profile basic-readonly /dev/acdctl4
+.fi
+.RE
+
+Use the ALS discovery profile and perform an experimental feature write:
+.PP
+.RS
+.nf
+acdprobe --profile als-discovery /dev/acdctl4 --set-feature 102 0 0 2
+.fi
+.RE
+
+Perform an experimental feature write without a profile:
+.PP
+.RS
+.nf
+acdprobe /dev/acdctl4 --set-feature 102 0 0 2
+.fi
+.RE
+
+Perform a write and delayed readback:
+.PP
+.RS
+.nf
+acdprobe /dev/acdctl4 --set-feature 102 0 0 2 --readback-delay-ms 500
+.fi
+.RE
+.
+.SH NOTES
+The current source documents these confirmed HID findings on the Apple LED
+Cinema Display 27-inch (USB ID
+.BR 05ac:9226 ):
+.RS
+.IP \(bu 3
+report 16 / usage 0x00820010 = brightness
+.IP \(bu 3
+report 102 / usage 0x00820066 = ambient-light-sensor / auto-brightness style control
+.RE
+
+The source also documents tentative vendor-private findings for report 225 /
+usage 0xff9200e1 and report 236 / usage 0xff9200ec.
+
+These notes are useful for interpreting
+.B als-discovery
+and for understanding the current summary and hint generation.
+.
+.SH FILES
+.TP
+.I /dev/hiddevN
+Raw Linux HID device nodes.
+.
+.TP
+.I /dev/acdctlN
+Possible udev-created aliases for selected monitor HID nodes.
+.
+.TP
+.I probes/raw/
+Default base directory for ordinary probe runs.
+.
+.TP
+.I probes/VID_PID/
+Default collect bundle directory when
+.B \-\-collect
+is used with the default save-dir base.
+.
+.TP
+.I docs/summary-schema.rst
+Repository documentation for the compact
+.B summary.json
+collect artifact.
+.
+.SH SEE ALSO
+.BR acdcontrol (1)
+.
+.SH AUTHORS
+This manual page documents the behavior of the current experimental
+.B acdprobe
+tree and is intended to be maintained alongside the source.
