@@ -1,0 +1,507 @@
+.TH ACDCONTROL 1 "2026-03-19" "acdcontrol" "User Commands"
+.
+.SH NAME
+acdcontrol \- query and control brightness on supported Apple Cinema and Studio Displays
+.
+.SH SYNOPSIS
+.B acdcontrol
+.RB [ \-\-silent " | " \-s ]
+.RB [ \-\-brief " | " \-b ]
+.RB [ \-\-help " | " \-h ]
+.RB [ \-\-about " | " \-a ]
+.RB [ \-\-force " | " \-f ]
+.RB [ \-\-detect " | " \-d ]
+.RB [ \-\-list-all " | " \-l ]
+.RB [ \-\-auto-brightness " {" on | off | status "} ]
+.I hid-device
+.RI [ brightness ]
+.br
+.B acdcontrol
+.RB [ options ]
+.I hid-device...
+.
+.SH DESCRIPTION
+.B acdcontrol
+is a small Unix-style utility for querying or changing monitor brightness
+through the Linux
+.B hiddev
+interface.
+
+In its normal mode,
+.B acdcontrol
+opens one or more HID device nodes, checks whether each one appears to be a
+USB monitor, verifies whether the device is in the built-in support database,
+and then reads or writes the monitor brightness through the expected HID
+feature report layout.
+
+The default mode is query mode: if no brightness argument is supplied,
+.B acdcontrol
+reads the current value and prints it.
+
+When a brightness argument is supplied, the utility either sets an absolute
+value or applies a relative adjustment. After a write, the utility reads the
+value back from the device and prints the returned brightness value.
+
+A device path may be a raw
+.B /dev/hiddevN
+node or a udev-created alias such as
+.BR /dev/acdctl0 ,
+depending on local installation and udev rules.
+
+This manual describes the current experimental behavior of the utility as it
+exists today. It documents what the tool presently does, not a future driver
+interface.
+.
+.SH OPTIONS
+.TP
+.BR \-s ", " \-\-silent
+Suppress non-functional program output.
+
+This is mainly useful for scripts and status bars that only want the command
+result and not the startup notice or driver-version banner.
+.
+.TP
+.BR \-b ", " \-\-brief
+Print only the value in query-like modes.
+
+In ordinary brightness query mode, print only the numeric brightness value.
+
+With
+.BR \-\-auto-brightness " status" ,
+print only
+.BR on ,
+.BR off ,
+or
+.BR unknown .
+
+In brightness set modes,
+.B \-\-brief
+does not suppress the final brightness value; it only affects the label text.
+.
+.TP
+.BR \-f ", " \-\-force
+Continue even if the detected device is not present in the built-in supported
+device database.
+
+This does
+.I not
+skip the USB-monitor check. A device that is unsupported but still exposes the
+expected USB monitor HID layout may work. A device that is not a USB monitor
+will still be rejected.
+.
+.TP
+.BR \-d ", " \-\-detect
+Detection-only mode.
+
+In this mode,
+.B acdcontrol
+does not attempt to read or write brightness. Instead, it scans the given HID
+device node(s), identifies USB-monitor-class HID devices, and prints whether
+each one is currently
+.B SUPPORTED
+or
+.B UNSUPPORTED
+according to the built-in device database.
+
+This is the safest first step when identifying the correct HID device for a
+candidate monitor.
+.
+.TP
+.BR \-l ", " \-\-list-all
+Print the current built-in support database and exit.
+.
+.TP
+.BI "\-\-auto-brightness " mode
+Control or query auto-brightness on displays whose auto-brightness mapping is
+known to this utility.
+
+Valid values are:
+.BR on ,
+.BR off ,
+and
+.BR status .
+
+This option cannot be combined with a brightness operand.
+.
+.TP
+.BR \-h ", " \-\-help
+Print short usage help and exit.
+.
+.TP
+.BR \-a ", " \-\-about
+Print program credits and about text and exit.
+.
+.SH OPERANDS
+.TP
+.I hid-device
+One or more HID device nodes to inspect or control.
+
+Examples:
+.BR /dev/hiddev0 ,
+.BR /dev/hiddev1 ,
+.BR /dev/acdctl0 .
+.
+.TP
+.I brightness
+Brightness value to apply.
+
+Valid forms are:
+.RS
+.IP \(bu 3
+Absolute value, for example
+.BR 650
+.IP \(bu 3
+Relative increase, for example
+.BR +10
+.IP \(bu 3
+Relative decrease, for example
+.BR "\-\- -10"
+.RE
+
+The
+.B \-\-
+separator is recommended before a negative relative value so the shell and
+option parser do not treat it as another option.
+.
+.SH MODES OF OPERATION
+.SS Query mode
+If no brightness operand is given and
+.B \-\-auto-brightness
+is not used,
+.B acdcontrol
+reads the current brightness and prints it.
+
+By default the output format is:
+.PP
+.RS
+.I device
+.BR ": BRIGHTNESS="
+.I value
+.RE
+.
+.SS Absolute set mode
+If a plain integer brightness operand is supplied,
+.B acdcontrol
+treats it as the desired target value.
+
+The current implementation clamps the value into the range 0 to 1023 before
+writing it to the device, then reads the brightness back and prints the value
+returned by the monitor.
+.
+.SS Relative set mode
+If the brightness operand begins with
+.B +
+or
+.BR \- ,
+.B acdcontrol
+first reads the current brightness, adds the requested delta, clamps the
+result to the range 0 to 1023, writes the new value, reads it back, and
+prints the returned value.
+.
+.SS Detection mode
+With
+.BR \-\-detect ,
+the utility reports whether each supplied HID device appears to be a USB
+monitor and whether it matches an entry in the support database.
+
+Detection mode does not attempt to change brightness.
+.
+.SS Auto-brightness mode
+With
+.BR \-\-auto-brightness ,
+the utility either sets or queries the display auto-brightness state and also
+prints the current brightness.
+
+In non-brief mode the output format is:
+.PP
+.RS
+.I device
+.BR ": AUTO_BRIGHTNESS="
+.I state
+.BR " BRIGHTNESS="
+.I value
+.RE
+
+In brief mode, only the auto-brightness state is printed for
+.BR status .
+.
+.SH DEVICE SUPPORT MODEL
+By default,
+.B acdcontrol
+uses a conservative policy: if a device is not in the built-in support
+database, it prints an unsupported-device message and exits with status 2.
+
+With
+.BR \-\-force ,
+the utility continues past that policy check and tries the generic brightness
+path anyway, provided the HID device still identifies as a USB monitor.
+
+This means:
+.RS
+.IP \(bu 3
+unsupported does not always mean impossible
+.IP \(bu 3
+known support improves confidence
+.IP \(bu 3
+candidate devices should be tested carefully, starting with
+.BR \-\-detect
+.RE
+
+The current implementation uses one generic brightness HID mapping for all
+supported and forced devices. It does not yet choose different brightness
+report layouts or value ranges on a per-model basis.
+.
+.SH SUPPORTED HARDWARE
+At the time of this manual revision, the built-in support database includes
+these device families:
+.RS
+.IP \(bu 3
+Apple Studio Display 15"
+.IP \(bu 3
+Apple Studio Display 17"
+.IP \(bu 3
+Apple Cinema Display 20" (old, new, and alt variants)
+.IP \(bu 3
+Apple Cinema Display 23" (old and new variants)
+.IP \(bu 3
+Apple Cinema Display 24"
+.IP \(bu 3
+Apple Cinema Display 30"
+.IP \(bu 3
+Apple Cinema HD Display 27"
+.IP \(bu 3
+Apple Cinema HD Display 30"
+.IP \(bu 3
+Apple LED Cinema Display 24"
+.IP \(bu 3
+Samsung SyncMaster 757NF
+.RE
+
+For the authoritative runtime list on your build, use:
+.PP
+.RS
+.B acdcontrol --list-all
+.RE
+.
+.SH AUTO-BRIGHTNESS
+Auto-brightness support is currently narrower than brightness support.
+
+At present, the utility only treats Apple product ID
+.B 0x9226
+as having a known auto-brightness mapping.
+
+The current auto-brightness mapping uses:
+.RS
+.IP \(bu 3
+report ID 102
+.IP \(bu 3
+usage code 0x820066
+.IP \(bu 3
+value 1 for off
+.IP \(bu 3
+value 2 for on
+.RE
+
+If
+.B \-\-auto-brightness
+is requested on a display whose mapping is not yet known,
+.B acdcontrol
+prints an error and exits with status 2.
+.
+.SH OUTPUT
+In ordinary query mode:
+.PP
+.RS
+.nf
+/dev/acdctl0: BRIGHTNESS=612
+.fi
+.RE
+
+In brief query mode:
+.PP
+.RS
+.nf
+612
+.fi
+.RE
+
+In auto-brightness status mode:
+.PP
+.RS
+.nf
+/dev/acdctl0: AUTO_BRIGHTNESS=on BRIGHTNESS=612
+.fi
+.RE
+
+In brief auto-brightness status mode:
+.PP
+.RS
+.nf
+on
+.fi
+.RE
+
+In detection mode:
+.PP
+.RS
+.nf
+/dev/acdctl4: USB Monitor - SUPPORTED.    Vendor=0x05ac (Apple), Product=0x9226[Apple Cinema HD Display 27"]
+.fi
+.RE
+.
+.SH EXIT STATUS
+The current implementation uses these status codes in common cases:
+.TP
+.B 0
+Successful completion.
+.
+.TP
+.B 1
+Missing required device operands, or certain fatal low-level setup or I/O
+errors.
+.
+.TP
+.B 2
+Invalid command-line usage or policy refusal, including cases such as:
+.RS
+.IP \(bu 3
+unknown option
+.IP \(bu 3
+invalid brightness argument
+.IP \(bu 3
+invalid auto-brightness mode
+.IP \(bu 3
+unsupported device without
+.BR \-\-force
+.IP \(bu 3
+requesting auto-brightness on a display whose mapping is not yet known
+.RE
+.
+.TP
+.B 4
+Unexpected HID usage code during report validation.
+.
+.PP
+Per-device open and some ioctl failures may be reported while processing a list
+of devices. The program does not currently provide a rich aggregated summary
+status for multi-device runs, so scripts should inspect stderr as well as the
+exit code.
+.
+.SH SAFETY NOTES
+Run
+.B acdcontrol --detect
+before trying writes on an unknown device.
+
+Use
+.B \-\-force
+only when you intentionally want to test a candidate monitor that is not yet
+in the support database.
+
+Because the project is still experimental, monitor families from different
+controller eras may expose different effective behavior even when the generic
+brightness path works. A successful read or write on one Apple display model
+does not prove identical behavior on another.
+.
+.SH EXAMPLES
+List devices currently hard-coded as supported:
+.PP
+.RS
+.nf
+acdcontrol --list-all
+.fi
+.RE
+
+Detect which HID device belongs to the monitor:
+.PP
+.RS
+.nf
+acdcontrol --detect /dev/acdctl*
+.fi
+.RE
+
+Read current brightness:
+.PP
+.RS
+.nf
+acdcontrol /dev/acdctl0
+.fi
+.RE
+
+Set an absolute brightness:
+.PP
+.RS
+.nf
+acdcontrol /dev/acdctl0 650
+.fi
+.RE
+
+Increase brightness by 10:
+.PP
+.RS
+.nf
+acdcontrol /dev/acdctl0 +10
+.fi
+.RE
+
+Decrease brightness by 10:
+.PP
+.RS
+.nf
+acdcontrol /dev/acdctl0 -- -10
+.fi
+.RE
+
+Query auto-brightness status:
+.PP
+.RS
+.nf
+acdcontrol /dev/acdctl0 --auto-brightness status
+.fi
+.RE
+
+Enable auto-brightness on a display with a known mapping:
+.PP
+.RS
+.nf
+acdcontrol /dev/acdctl0 --auto-brightness on
+.fi
+.RE
+.
+.SH FILES
+.TP
+.I /dev/hiddevN
+Raw Linux HID device nodes.
+.
+.TP
+.I /dev/acdctlN
+Possible udev-created aliases for monitor HID nodes, depending on local
+installation.
+.
+.SH NOTES
+This utility currently targets the Linux
+.B hiddev
+interface.
+
+Its present brightness implementation assumes a generic feature-report layout
+with brightness usage code
+.BR 0x820010 ,
+report ID
+.BR 16 ,
+field index 0, and usage index 0, clamped to the range 0 to 1023.
+
+That behavior is documented here because it explains both why some unsupported
+devices may still work with
+.B \-\-force
+and why future model-specific refinements may be needed.
+.
+.SH SEE ALSO
+.BR acdprobe (1)
+.
+.SH AUTHORS
+Original project by the upstream
+.B acdcontrol
+authors.
+
+This manual page documents the behavior of the current experimental
+.B acdcontrol
+tree and is intended to be maintained alongside the source.
