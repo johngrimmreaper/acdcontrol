@@ -1,0 +1,145 @@
+=========================================
+Model Notes: Apple LED Cinema Display 27"
+=========================================
+
+USB identity
+============
+
+* Vendor ID: ``05ac``
+* Product ID: ``9226``
+
+This file records the current project findings for the Apple LED Cinema Display
+27-inch. It is the first model note because it is the display with the strongest
+confirmed evidence in the current tree and the model that already has native
+auto-brightness support mapped in ``acdcontrol``.
+
+
+Status of current knowledge
+===========================
+
+This model is the current reference monitor for confirmed HID control mapping in
+the repository.
+
+Probe output and controlled write/readback testing support these findings:
+
+* feature report ``16`` / usage ``0x00820010`` = confirmed brightness control
+* feature report ``102`` / usage ``0x00820066`` = confirmed ambient-light-sensor
+  / auto-brightness style control
+* feature report ``225`` / usage ``0xff9200e1`` = tentative vendor-private
+  boolean
+* feature report ``236`` / usage ``0xff9200ec`` = tentative vendor-private
+  data/status
+
+At the moment, the confirmed mapping for report ``102`` is:
+
+* ``1`` = auto-brightness off
+* ``2`` = auto-brightness on
+
+Reports ``225`` and ``236`` remain under investigation.
+
+
+Confirmed controls
+==================
+
+Brightness
+----------
+
+The project currently treats feature report ``16`` / usage ``0x00820010`` as
+the confirmed brightness control on this display.
+
+This is the control path that underlies the current ``acdcontrol`` brightness
+support.
+
+Auto-brightness
+---------------
+
+The project currently treats feature report ``102`` / usage ``0x00820066`` as
+the confirmed ambient-light-sensor / auto-brightness style control on this
+display.
+
+This is the mapping currently implemented by ``acdcontrol`` for native
+auto-brightness control on USB ID ``05ac:9226``.
+
+Current confirmed values:
+
+* ``1`` = off
+* ``2`` = on
+
+
+Tentative controls
+==================
+
+Vendor-private boolean
+----------------------
+
+Feature report ``225`` / usage ``0xff9200e1`` is currently treated as a
+tentative vendor-private boolean.
+
+It is useful enough to keep in summaries and model notes, but not yet strong
+enough to treat as established behavior.
+
+Vendor-private status/data
+--------------------------
+
+Feature report ``236`` / usage ``0xff9200ec`` is currently treated as a
+tentative vendor-private data/status control.
+
+At present it should be viewed as unresolved telemetry or state-like data, not
+as a confirmed user-facing feature.
+
+
+How this note relates to ``summary.json``
+=========================================
+
+In collected probe bundles for this monitor, the compact ``summary.json`` should
+reflect the current project confidence model:
+
+* brightness should appear as a ``known`` control
+* the ambient-light-sensor / auto-brightness control should appear as a
+  ``known`` control
+* vendor-private unresolved items may appear in the dedicated
+  ``telemetry_candidates`` section with weaker confidence labels such as
+  ``candidate`` or ``tentative``
+
+For the exact field meanings and confidence vocabulary, see
+``docs/summary-schema.rst``.
+
+
+Why this model note exists
+==========================
+
+The goal of a model note is to keep per-monitor findings out of the top-level
+README while still preserving the reasoning that matters to maintainers and
+contributors.
+
+This file is intentionally narrower than a man page and more stable than a
+reverse-engineering scratchpad. It should answer:
+
+* what is confirmed
+* what is still tentative
+* which report and usage pairs matter
+* what reviewers should expect to see in collected summaries
+
+
+What remains open
+=================
+
+The following questions are still open for this model:
+
+* whether additional vendor-private controls have a stable user-facing meaning
+* whether report ``225`` and report ``236`` map to ALS-related state, monitor
+  telemetry, or unrelated controller internals
+* whether more cross-platform comparison is needed before raising confidence on
+  unresolved controls
+
+Until stronger evidence exists, unresolved controls should stay documented as
+tentative rather than being promoted into stable supported behavior.
+
+
+Related files
+=============
+
+* ``man/acdcontrol.1``
+* ``man/acdprobe.1``
+* ``docs/probe-workflow.rst``
+* ``docs/summary-schema.rst``
